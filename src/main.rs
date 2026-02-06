@@ -6,13 +6,13 @@ use std::rc::Rc;
 
 use ndarray::{ArrayBase, IxDyn, OwnedRepr};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TensorDevice {
     Cpu,
     Gpu,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum TensorOp {
     Add,
     Sub,
@@ -68,6 +68,13 @@ where
     }
 }
 
+struct TensorBuilder<T>
+where
+    T: Clone + Debug,
+{
+    inner: Tensor<T>,
+}
+
 #[derive(Debug)]
 struct Tensor<T>
 where
@@ -82,6 +89,7 @@ where
     op: Option<TensorOp>,
 }
 
+// TODO: Support nested lists
 impl<T> Tensor<T>
 where
     T: Clone + Debug,
@@ -91,9 +99,17 @@ where
     // what numpy can do. There is overhead to this though, I need to see how python handles
     // this, my assumption is that numpy has some specialized C code for this.
     pub fn new(shape: &[usize], data: TensorData<T>) -> Self {
+        // TODO: Need to check shape vs data to ensure that shape matches the data
+        // length we are attempting to make an ArrayBase.
         let arr: ArrayBase<_, IxDyn, _> = match data.inner {
             TensorInner::List(items) => ArrayBase::from_shape_vec(shape, items).unwrap(),
-            TensorInner::Scalar(item) => ArrayBase::from_shape_vec(shape, vec![item]).unwrap(),
+            TensorInner::Scalar(item) => {
+                assert!(
+                    shape.len() == 1 && shape.first() == Some(&0),
+                    "When passing a scalar datatype you need to make sure shape is &[1]"
+                );
+                ArrayBase::from_shape_vec(shape, vec![item]).unwrap()
+            }
             TensorInner::Tensor(tensor) => tensor.data,
             TensorInner::NdArray(array_base) => {
                 if array_base.shape() != shape {
@@ -104,6 +120,8 @@ where
             }
         };
         Self {
+            // TODO: Some of these datatypes should probably be of the RC
+            // variant so I don't have to throw clones all over the place.
             data: arr,
             grad: None,
             requires_grad: true,
@@ -116,6 +134,42 @@ where
 
     pub fn backward() {
         todo!()
+    }
+
+    pub fn shape(&self) -> &[usize] {
+        self.data.shape()
+    }
+
+    pub fn dtype(&self) -> TensorDtype {
+        self.dtype.clone()
+    }
+
+    pub fn ndim(&self) -> usize {
+        self.data.ndim()
+    }
+
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
+    pub fn device(&self) -> TensorDevice {
+        self.device.clone()
+    }
+
+    pub fn ndarray(&self) -> ArrayBase<OwnedRepr<T>, IxDyn, T> {
+        self.data.clone()
+    }
+
+    pub fn detach(&self) -> Tensor<T> {
+        Tensor {
+            data: self.data.clone(),
+            grad: self.grad,
+            requires_grad: false,
+            input: self.input.clone(),
+            device: self.device.clone(),
+            dtype: self.dtype.clone(),
+            op: self.op.clone(),
+        }
     }
 }
 
@@ -146,6 +200,14 @@ mod tests {
 
     #[test]
     fn tensor_test() {
-        let _data = TensorData::new(TensorDtype::Float64, TensorInner::Scalar(15f64));
+        let data = TensorData::new(TensorDtype::Float64, TensorInner::Scalar(15f64));
+        let tensor = Tensor::new(&[1], data);
+        println!("{}", tensor);
+        let data = TensorData::new(
+            TensorDtype::Float64,
+            TensorInner::List(vec![1., 2., 3., 4.]),
+        );
+        let tensor = Tensor::new(&[2, 2], data);
+        println!("{}", tensor);
     }
 }
