@@ -16,6 +16,7 @@ where
             self.dtype(),
             crate::tensor::TensorInner::NdArray(combined_data),
         );
-        Tensor::with_inputs(data, vec![self.clone(), rhs.clone()], None)
+        let inputs = vec![self, rhs];
+        Tensor::with_inputs(data, inputs, None)
     }
 }

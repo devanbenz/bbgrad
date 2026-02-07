@@ -8,4 +8,5 @@ name = "bbgrad"
 path = "src/lib.rs"
 
 [dependencies]
-ndarray = "0.17.2"
+ndarray = { version = "0.17.2", features = ["blas"] }
+ndarray-rand = "0.16.0"
