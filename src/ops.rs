@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 use std::ops;
 
-use crate::tensor::{Tensor, TensorData};
+use crate::tensor::{Tensor, TensorBuilder, TensorData};
 
 impl<T> ops::Add for Tensor<T>
 where
@@ -17,6 +17,6 @@ where
             crate::tensor::TensorInner::NdArray(combined_data),
         );
         let inputs = vec![self, rhs];
-        Tensor::with_inputs(data, inputs, None)
+        TensorBuilder::new(data, None).input(inputs).build()
     }
 }

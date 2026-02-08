@@ -18,6 +18,10 @@ pub enum TensorOp {
     Sub,
 }
 
+impl TensorOp {
+    pub(crate) fn forward() {}
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum TensorDtype {
     Float64,
@@ -192,6 +196,43 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.data)
+    }
+}
+
+pub struct TensorBuilder<T>
+where
+    T: Clone + Debug + Add<Output = T>,
+{
+    tensor: Tensor<T>,
+}
+
+impl<T> TensorBuilder<T>
+where
+    T: Clone + Debug + Add<Output = T>,
+{
+    pub fn new(data: TensorData<T>, shape: Option<&[usize]>) -> Self {
+        Self {
+            tensor: Tensor::new(data, shape),
+        }
+    }
+
+    pub fn device(mut self, device: TensorDevice) -> Self {
+        self.tensor.device = device;
+        self
+    }
+
+    pub fn input(mut self, input: Vec<Tensor<T>>) -> Self {
+        self.tensor.input = Some(input);
+        self
+    }
+
+    pub fn op(mut self, op: TensorOp) -> Self {
+        self.tensor.op = Some(op);
+        self
+    }
+
+    pub fn build(self) -> Tensor<T> {
+        self.tensor
     }
 }
 
