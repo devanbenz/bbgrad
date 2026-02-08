@@ -1,10 +1,9 @@
-pub mod ops;
 pub mod tensor;
 
 #[cfg(test)]
 mod tests {
 
-    use crate::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
+    use crate::tensor::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
 
     #[test]
     fn test_tensor_addition() {

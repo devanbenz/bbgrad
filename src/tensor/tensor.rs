@@ -2,6 +2,7 @@
 
 use std::any::TypeId;
 use std::fmt::{Debug, Display};
+use std::marker::PhantomData;
 use std::ops::Add;
 
 use ndarray::{ArrayBase, IxDyn, OwnedRepr};
@@ -13,13 +14,39 @@ pub enum TensorDevice {
 }
 
 #[derive(Debug, Clone)]
-pub enum TensorOp {
-    Add,
-    Sub,
+pub struct TensorAdd<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
 }
 
-impl TensorOp {
-    pub(crate) fn forward() {}
+#[derive(Debug, Clone)]
+pub struct TensorSub<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
+
+#[derive(Debug, Clone)]
+pub enum TensorOp<T: Debug + Clone> {
+    Add(TensorAdd<T>),
+    Sub(TensorSub<T>),
+}
+
+pub(crate) trait Backward {
+    type BackwardInput;
+    type BackwardOutput;
+
+    fn backward(&self, input: Self::BackwardInput) -> Self::BackwardOutput;
+}
+
+impl<T> Backward for TensorAdd<T>
+where
+    T: Clone + Debug,
+{
+    type BackwardInput = (Tensor<T>, Tensor<T>);
+
+    type BackwardOutput = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, input: Self::BackwardInput) -> Self::BackwardOutput {
+        (input.0, input.1)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -33,7 +60,7 @@ pub enum TensorDtype {
 #[derive(Debug)]
 pub enum TensorInner<T>
 where
-    T: Clone + Debug + Add<Output = T>,
+    T: Clone + Debug,
 {
     List(Vec<T>),
     Scalar(T),
@@ -75,7 +102,7 @@ where
 #[derive(Debug, Clone)]
 pub struct Tensor<T>
 where
-    T: Clone + Debug + Add<Output = T>,
+    T: Clone + Debug,
 {
     pub data: ArrayBase<OwnedRepr<T>, IxDyn, T>,
     grad: Option<i32>,
@@ -83,7 +110,7 @@ where
     input: Option<Vec<Tensor<T>>>,
     device: TensorDevice,
     dtype: TensorDtype,
-    pub op: Option<TensorOp>,
+    op: Option<TensorOp<T>>,
 }
 
 // TODO: Support nested lists
@@ -192,7 +219,7 @@ where
 
 impl<T> Display for Tensor<T>
 where
-    T: Clone + Debug + Add<Output = T>,
+    T: Clone + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self.data)
@@ -201,7 +228,7 @@ where
 
 pub struct TensorBuilder<T>
 where
-    T: Clone + Debug + Add<Output = T>,
+    T: Clone + Debug,
 {
     tensor: Tensor<T>,
 }
@@ -226,7 +253,7 @@ where
         self
     }
 
-    pub fn op(mut self, op: TensorOp) -> Self {
+    pub fn op(mut self, op: TensorOp<T>) -> Self {
         self.tensor.op = Some(op);
         self
     }
