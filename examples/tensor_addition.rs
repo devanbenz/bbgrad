@@ -1,4 +1,4 @@
-use bbgrad::tensor::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
+use bbgrad::autograd::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
 use ndarray::{ArrayD, IxDyn};
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::StandardNormal;

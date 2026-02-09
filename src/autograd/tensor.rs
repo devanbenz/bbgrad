@@ -5,7 +5,7 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use ndarray::{ArrayBase, IxDyn, OwnedRepr};
+use ndarray::{ArcArray, ArrayBase, Ix, IxDyn, OwnedRepr};
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {
@@ -99,13 +99,14 @@ where
     }
 }
 
+// TODO: Rename this to TensorInner and wrap it in an Arc within a new Tensor type
 #[derive(Debug, Clone)]
 pub struct Tensor<T>
 where
     T: Clone + Debug,
 {
     pub data: ArrayBase<OwnedRepr<T>, IxDyn, T>,
-    grad: Option<i32>,
+    grad: Option<ArcArray<T, IxDyn>>,
     requires_grad: bool,
     input: Option<Vec<Tensor<T>>>,
     device: TensorDevice,
@@ -176,8 +177,13 @@ where
         tensor
     }
 
-    pub fn backward() {
-        todo!()
+    pub fn backward(&self) {
+        if let Some(op_type) = self.op {
+            let output = match op_type {
+                TensorOp::Add(f) => f.backward(),
+                TensorOp::Sub(f) => f.backward(),
+            }
+        }
     }
 
     pub fn shape(&self) -> &[usize] {

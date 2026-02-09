@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops;
 
-use crate::tensor::tensor::{
+use crate::autograd::tensor::{
     TensorAdd, TensorBuilder, TensorData, TensorInner, TensorOp, TensorSub,
 };
 
@@ -45,13 +45,5 @@ where
                 marker: PhantomData,
             }))
             .build()
-    }
-}
-
-impl ops::FnOnce for TensorOp<T: Debug + Clone> {
-    type Output;
-
-    extern "rust-call" fn call_once(self, args: Args) -> Self::Output {
-        todo!()
     }
 }

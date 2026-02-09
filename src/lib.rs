@@ -1,9 +1,9 @@
-pub mod tensor;
+pub mod autograd;
 
 #[cfg(test)]
 mod tests {
 
-    use crate::tensor::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
+    use crate::autograd::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
 
     #[test]
     fn test_tensor_addition() {
