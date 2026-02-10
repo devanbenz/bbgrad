@@ -5,7 +5,11 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::ops::Add;
 
-use ndarray::{ArcArray, ArrayBase, Ix, IxDyn, OwnedRepr};
+use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
+
+use super::backward::{
+    TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorSub, TensorSum,
+};
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {
@@ -14,39 +18,14 @@ pub enum TensorDevice {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorAdd<T: Debug + Clone> {
-    pub(crate) marker: PhantomData<T>,
-}
-
-#[derive(Debug, Clone)]
-pub struct TensorSub<T: Debug + Clone> {
-    pub(crate) marker: PhantomData<T>,
-}
-
-#[derive(Debug, Clone)]
 pub enum TensorOp<T: Debug + Clone> {
     Add(TensorAdd<T>),
     Sub(TensorSub<T>),
-}
-
-pub(crate) trait Backward {
-    type BackwardInput;
-    type BackwardOutput;
-
-    fn backward(&self, input: Self::BackwardInput) -> Self::BackwardOutput;
-}
-
-impl<T> Backward for TensorAdd<T>
-where
-    T: Clone + Debug,
-{
-    type BackwardInput = (Tensor<T>, Tensor<T>);
-
-    type BackwardOutput = (Tensor<T>, Tensor<T>);
-
-    fn backward(&self, input: Self::BackwardInput) -> Self::BackwardOutput {
-        (input.0, input.1)
-    }
+    Div(TensorDiv<T>),
+    Mul(TensorMul<T>),
+    Neg(TensorNeg<T>),
+    MatMul(TensorMatMul<T>),
+    Sum(TensorSum<T>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -117,7 +96,7 @@ where
 // TODO: Support nested lists
 impl<T> Tensor<T>
 where
-    T: Clone + Debug + Add<Output = T>,
+    T: Clone + Debug + Add<Output = T> + num_traits::identities::Zero,
 {
     // TODO: Right now I require a shape for tensors, it would be nice to implement
     // something like a Vec<NestedList<T>> for this and infer the shape similar to
@@ -178,12 +157,7 @@ where
     }
 
     pub fn backward(&self) {
-        if let Some(op_type) = self.op {
-            let output = match op_type {
-                TensorOp::Add(f) => f.backward(),
-                TensorOp::Sub(f) => f.backward(),
-            }
-        }
+        todo!();
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -213,13 +187,43 @@ where
     pub fn detach(&self) -> Tensor<T> {
         Tensor {
             data: self.data.clone(),
-            grad: self.grad,
+            grad: self.grad.clone(),
             requires_grad: false,
             input: self.input.clone(),
             device: self.device.clone(),
             dtype: self.dtype.clone(),
             op: self.op.clone(),
         }
+    }
+
+    pub fn sum(self) -> Tensor<T>
+    where
+        T: 'static,
+    {
+        let sum = self.data.sum();
+        let data = TensorData::new(self.dtype(), TensorInner::Scalar(sum.to_owned()));
+        TensorBuilder::new(data, Some(&[1]))
+            .op(TensorOp::Sum(TensorSum {
+                marker: PhantomData,
+            }))
+            .build()
+    }
+
+    // TODO: This should be a view not an owned tensor, but for now, we will make it owned
+    pub fn broadcast_to(&self, shape: &[usize]) -> Tensor<T>
+    where
+        T: 'static,
+    {
+        let new_arr = self.data.broadcast(shape);
+        let data = TensorData::new(
+            self.dtype(),
+            TensorInner::NdArray(new_arr.unwrap().to_owned()),
+        );
+        TensorBuilder::new(data, None)
+            .op(TensorOp::Sum(TensorSum {
+                marker: PhantomData,
+            }))
+            .build()
     }
 }
 
@@ -232,16 +236,34 @@ where
     }
 }
 
+impl<T: num_traits::Zero + Clone> num_traits::Zero for Tensor<T>
+where
+    T: Clone + Debug + 'static,
+{
+    fn zero() -> Self {
+        // Create a scalar (0-dim) tensor holding zero
+        let data = ArrayD::<T>::zeros(IxDyn(&[]));
+        Tensor::new(
+            TensorData::new(TensorDtype::Float64, TensorInner::NdArray(data)),
+            None,
+        )
+    }
+
+    fn is_zero(&self) -> bool {
+        self.data.iter().all(|x| x.is_zero())
+    }
+}
+
 pub struct TensorBuilder<T>
 where
-    T: Clone + Debug,
+    T: Clone + Debug + num_traits::identities::Zero,
 {
     tensor: Tensor<T>,
 }
 
 impl<T> TensorBuilder<T>
 where
-    T: Clone + Debug + Add<Output = T>,
+    T: Clone + Debug + Add<Output = T> + num_traits::identities::Zero,
 {
     pub fn new(data: TensorData<T>, shape: Option<&[usize]>) -> Self {
         Self {

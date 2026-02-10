@@ -10,3 +10,6 @@ path = "src/lib.rs"
 [dependencies]
 ndarray = { version = "0.17.2", features = ["blas"] }
 ndarray-rand = "0.16.0"
+blas-src = { version = "0.14.0", features = ["openblas"] }
+openblas-src = { version = "0.10", features = ["cblas", "system"] }
+num-traits = "0.2.19"
