@@ -168,6 +168,10 @@ where
         self.dtype.clone()
     }
 
+    pub fn requires_grad(&self) -> bool {
+        self.requires_grad
+    }
+
     pub fn ndim(&self) -> usize {
         self.data.ndim()
     }
@@ -271,17 +275,17 @@ where
         }
     }
 
-    pub fn device(mut self, device: TensorDevice) -> Self {
+    pub fn device(&mut self, device: TensorDevice) -> &mut TensorBuilder<T> {
         self.tensor.device = device;
         self
     }
 
-    pub fn input(mut self, input: Vec<Tensor<T>>) -> Self {
+    pub fn input(&mut self, input: Vec<Tensor<T>>) -> &mut TensorBuilder<T> {
         self.tensor.input = Some(input);
         self
     }
 
-    pub fn op(mut self, op: TensorOp<T>) -> Self {
+    pub fn op(&mut self, op: TensorOp<T>) -> &mut TensorBuilder<T> {
         self.tensor.op = Some(op);
         self
     }

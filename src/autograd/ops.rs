@@ -1,12 +1,13 @@
 use std::fmt::Debug;
 use std::marker::{Copy, PhantomData};
 use std::ops::{self, Sub};
+use std::vec;
 
 use ndarray::{ArrayBase, ArrayD, Ix1, Ix2, IxDyn, LinalgScalar, OwnedRepr, linalg};
 use ndarray_rand::rand_distr::num_traits::{self, Zero};
 
 use crate::autograd::backward::{
-    TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorSub,
+    Forward, TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorSub,
 };
 use crate::autograd::tensor::{TensorBuilder, TensorData, TensorInner, TensorOp};
 
@@ -20,15 +21,7 @@ where
 
     fn add(self, rhs: Self) -> Self::Output {
         assert_eq!(self.dtype(), rhs.dtype());
-        let combined_data = &self.data + &rhs.data;
-        let data = TensorData::new(self.dtype(), TensorInner::NdArray(combined_data));
-        let inputs = vec![self, rhs];
-        TensorBuilder::new(data, None)
-            .op(TensorOp::Add(TensorAdd {
-                marker: PhantomData,
-            }))
-            .input(inputs)
-            .build()
+        TensorAdd::new().call(vec![self, rhs])
     }
 }
 
