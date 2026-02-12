@@ -1,31 +1,19 @@
 #![allow(dead_code)]
 
-use std::any::TypeId;
-use std::fmt::{Debug, Display};
-use std::marker::PhantomData;
 use std::ops::Add;
+use std::{
+    any::TypeId,
+    fmt::{Debug, Display},
+};
 
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 
-use super::backward::{
-    TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorSub, TensorSum,
-};
+use super::backward::TensorOp;
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {
     Cpu,
     Gpu,
-}
-
-#[derive(Debug, Clone)]
-pub enum TensorOp<T: Debug + Clone> {
-    Add(TensorAdd<T>),
-    Sub(TensorSub<T>),
-    Div(TensorDiv<T>),
-    Mul(TensorMul<T>),
-    Neg(TensorNeg<T>),
-    MatMul(TensorMatMul<T>),
-    Sum(TensorSum<T>),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -198,36 +186,6 @@ where
             dtype: self.dtype.clone(),
             op: self.op.clone(),
         }
-    }
-
-    pub fn sum(self) -> Tensor<T>
-    where
-        T: 'static,
-    {
-        let sum = self.data.sum();
-        let data = TensorData::new(self.dtype(), TensorInner::Scalar(sum.to_owned()));
-        TensorBuilder::new(data, Some(&[1]))
-            .op(TensorOp::Sum(TensorSum {
-                marker: PhantomData,
-            }))
-            .build()
-    }
-
-    // TODO: This should be a view not an owned tensor, but for now, we will make it owned
-    pub fn broadcast_to(&self, shape: &[usize]) -> Tensor<T>
-    where
-        T: 'static,
-    {
-        let new_arr = self.data.broadcast(shape);
-        let data = TensorData::new(
-            self.dtype(),
-            TensorInner::NdArray(new_arr.unwrap().to_owned()),
-        );
-        TensorBuilder::new(data, None)
-            .op(TensorOp::Sum(TensorSum {
-                marker: PhantomData,
-            }))
-            .build()
     }
 }
 

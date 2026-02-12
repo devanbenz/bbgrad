@@ -1,17 +1,32 @@
+#![allow(dead_code)]
+
+use ndarray::linalg;
 use std::fmt::Debug;
-use std::marker::{Copy, PhantomData};
+use std::marker::Copy;
 use std::ops::{self, Sub};
 use std::vec;
 
-use ndarray::{ArrayBase, ArrayD, Ix1, Ix2, IxDyn, LinalgScalar, OwnedRepr, linalg};
 use ndarray_rand::rand_distr::num_traits::{self, Zero};
 
 use crate::autograd::backward::{
     Forward, TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorSub,
 };
-use crate::autograd::tensor::{TensorBuilder, TensorData, TensorInner, TensorOp};
 
+use super::backward::{TensorPow, TensorSum};
 use super::tensor::Tensor;
+
+trait Sum {
+    type Output;
+
+    fn sum(&self) -> Self::Output;
+}
+
+trait Pow {
+    type Output;
+    type Exp;
+
+    fn pow(&self, exp: Self::Exp) -> Self::Output;
+}
 
 impl<T> ops::Add for Tensor<T>
 where
@@ -33,15 +48,7 @@ where
 
     fn sub(self, rhs: Self) -> Self::Output {
         assert_eq!(self.dtype(), rhs.dtype());
-        let combined_data = &self.data - &rhs.data;
-        let data = TensorData::new(self.dtype(), TensorInner::NdArray(combined_data));
-        let inputs = vec![self, rhs];
-        TensorBuilder::new(data, None)
-            .input(inputs)
-            .op(TensorOp::Sub(TensorSub {
-                marker: PhantomData,
-            }))
-            .build()
+        TensorSub::new().call(vec![self, rhs])
     }
 }
 
@@ -53,15 +60,7 @@ where
 
     fn mul(self, rhs: Self) -> Self::Output {
         assert_eq!(self.dtype(), rhs.dtype());
-        let combined_data = &self.data * &rhs.data;
-        let data = TensorData::new(self.dtype(), TensorInner::NdArray(combined_data));
-        let inputs = vec![self, rhs];
-        TensorBuilder::new(data, None)
-            .input(inputs)
-            .op(TensorOp::Mul(TensorMul {
-                marker: PhantomData,
-            }))
-            .build()
+        TensorMul::new().call(vec![self, rhs])
     }
 }
 
@@ -73,15 +72,7 @@ where
 
     fn div(self, rhs: Self) -> Self::Output {
         assert_eq!(self.dtype(), rhs.dtype());
-        let combined_data = &self.data / &rhs.data;
-        let data = TensorData::new(self.dtype(), TensorInner::NdArray(combined_data));
-        let inputs = vec![self, rhs];
-        TensorBuilder::new(data, None)
-            .input(inputs)
-            .op(TensorOp::Div(TensorDiv {
-                marker: PhantomData,
-            }))
-            .build()
+        TensorDiv::new().call(vec![self, rhs])
     }
 }
 
@@ -92,13 +83,7 @@ where
     type Output = Tensor<T>;
 
     fn neg(self) -> Self::Output {
-        let combined_data = &self.data.clone().neg();
-        let data = TensorData::new(self.dtype(), TensorInner::NdArray(combined_data.to_owned()));
-        TensorBuilder::new(data, None)
-            .op(TensorOp::Neg(TensorNeg {
-                marker: PhantomData,
-            }))
-            .build()
+        TensorNeg::new().call(vec![self])
     }
 }
 
@@ -119,52 +104,24 @@ where
 
     fn dot(&self, rhs: &Tensor<T>) -> Self::Output {
         assert_eq!(self.dtype(), rhs.dtype());
-        let combined_data = dot_dyn(&self.data, &rhs.data);
-        let data = TensorData::new(self.dtype(), TensorInner::NdArray(combined_data));
-        let inputs = vec![self.to_owned(), rhs.to_owned()];
-        TensorBuilder::new(data, None)
-            .input(inputs)
-            .op(TensorOp::MatMul(TensorMatMul {
-                marker: PhantomData,
-            }))
-            .build()
+        TensorMatMul::new().call(vec![self.to_owned(), rhs.to_owned()])
     }
 }
 
-// TODO: Support higher dimension vectors > (2, 2)
-fn dot_dyn<T>(
-    a: &ArrayBase<OwnedRepr<T>, IxDyn, T>,
-    b: &ArrayBase<OwnedRepr<T>, IxDyn, T>,
-) -> ArrayBase<OwnedRepr<T>, IxDyn, T>
-where
-    T: LinalgScalar,
-{
-    let a_ndim = a.ndim();
-    let b_ndim = b.ndim();
+impl<T: Clone + Debug + Zero + 'static + num_traits::Pow<i32, Output = T>> Pow for Tensor<T> {
+    type Output = Tensor<T>;
+    type Exp = i32;
 
-    match (a_ndim, b_ndim) {
-        (1, 1) => {
-            let a_view = a.view().into_dimensionality::<Ix1>().unwrap();
-            let b_view = b.view().into_dimensionality::<Ix1>().unwrap();
-            let scalar = a_view.dot(&b_view);
-            ArrayD::from_elem(IxDyn(&[]), scalar)
-        }
-        (2, 1) => {
-            let a_view = a.view().into_dimensionality::<Ix2>().unwrap();
-            let b_view = b.view().into_dimensionality::<Ix1>().unwrap();
-            a_view.dot(&b_view).into_dyn().into_owned()
-        }
-        (1, 2) => {
-            let a_view = a.view().into_dimensionality::<Ix1>().unwrap();
-            let b_view = b.view().into_dimensionality::<Ix2>().unwrap();
-            a_view.dot(&b_view).into_dyn().into_owned()
-        }
-        (2, 2) => {
-            let a_view = a.view().into_dimensionality::<Ix2>().unwrap();
-            let b_view = b.view().into_dimensionality::<Ix2>().unwrap();
-            a_view.dot(&b_view).into_dyn().into_owned()
-        }
-        _ => todo!(),
+    fn pow(&self, exp: Self::Exp) -> Self::Output {
+        TensorPow::new(exp).call(vec![self.to_owned()])
+    }
+}
+
+impl<T: Clone + Debug + Zero + 'static> Sum for Tensor<T> {
+    type Output = Tensor<T>;
+
+    fn sum(&self) -> Self::Output {
+        TensorSum::new().call(vec![self.to_owned()])
     }
 }
 
@@ -173,7 +130,8 @@ mod tests {
 
     use ndarray::linalg::Dot;
 
-    use crate::autograd::tensor::{self, Tensor, TensorData, TensorDtype, TensorInner};
+    use crate::autograd::ops::{Pow, Sum};
+    use crate::autograd::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
 
     fn build_tensors() -> (Tensor<f64>, Tensor<f64>) {
         let data = TensorData::new(
@@ -246,5 +204,13 @@ mod tests {
         let sum = tensor.sum();
         assert_eq!(sum.shape(), &[1]);
         assert_eq!(sum.data[0], (1 + 2 + 3 + 4) as f64);
+    }
+
+    #[test]
+    fn test_tensor_pow() {
+        let (tensor, _) = build_tensors();
+        let sum = tensor.pow(2);
+        assert_eq!(sum.shape(), &[2, 2]);
+        assert_eq!(sum.data[[1, 0]], 9_f64);
     }
 }
