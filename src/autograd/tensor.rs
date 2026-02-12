@@ -8,7 +8,7 @@ use std::{
 
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 
-use super::backward::TensorOp;
+use super::ops::TensorOp;
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {

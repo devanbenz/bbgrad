@@ -1,216 +1,295 @@
-#![allow(dead_code)]
-
-use ndarray::linalg;
+use ndarray::{ArrayBase, ArrayD, Ix1, Ix2, IxDyn, LinalgScalar, OwnedRepr};
+use num_traits::Zero;
 use std::fmt::Debug;
-use std::marker::Copy;
-use std::ops::{self, Sub};
-use std::vec;
+use std::marker::PhantomData;
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use ndarray_rand::rand_distr::num_traits::{self, Zero};
-
-use crate::autograd::backward::{
-    Forward, TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorSub,
-};
-
-use super::backward::{TensorPow, TensorSum};
-use super::tensor::Tensor;
-
-trait Sum {
-    type Output;
-
-    fn sum(&self) -> Self::Output;
+#[derive(Debug, Clone)]
+pub enum TensorOp<T: Debug + Clone> {
+    Add(TensorAdd<T>),
+    Sub(TensorSub<T>),
+    Div(TensorDiv<T>),
+    Mul(TensorMul<T>),
+    Neg(TensorNeg<T>),
+    MatMul(TensorMatMul<T>),
+    Sum(TensorSum<T>),
+    BroadcastTo(TensorBroadcastTo<T>),
+    Pow(TensorPow<T>),
+    Transpose(TensorTranspose<T>),
+    Reshape(TensorReshape<T>),
+    Log(TensorLog<T>),
+    Exp(TensorExp<T>),
+    Relu(TensorRelu<T>),
+    Sigmoid(TensorSigmoid<T>),
+    Tanh(TensorTanh<T>),
+    Sqrt(TensorSqrt<T>),
 }
 
-trait Pow {
-    type Output;
-    type Exp;
-
-    fn pow(&self, exp: Self::Exp) -> Self::Output;
+#[derive(Debug, Clone)]
+pub struct TensorAdd<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
 }
 
-impl<T> ops::Add for Tensor<T>
+impl<T: Clone + Debug + Add<Output = T> + Zero + 'static> TensorAdd<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorSub<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + Sub<Output = T> + Zero + 'static> TensorSub<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorDiv<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + Div<Output = T> + Zero + 'static> TensorDiv<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorMul<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + Mul<Output = T> + Zero + 'static> TensorMul<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorNeg<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + Neg<Output = T> + Zero + 'static> TensorNeg<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorMatMul<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + LinalgScalar + Zero + 'static> TensorMatMul<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+// TODO: Support higher dimension vectors > (2, 2)
+pub(crate) fn dot_dyn<T>(
+    a: &ArrayBase<OwnedRepr<T>, IxDyn, T>,
+    b: &ArrayBase<OwnedRepr<T>, IxDyn, T>,
+) -> ArrayBase<OwnedRepr<T>, IxDyn, T>
 where
-    T: Clone + Debug + ops::Add<Output = T> + 'static + Zero,
+    T: LinalgScalar,
 {
-    type Output = Tensor<T>;
+    let a_ndim = a.ndim();
+    let b_ndim = b.ndim();
 
-    fn add(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.dtype(), rhs.dtype());
-        TensorAdd::new().call(vec![self, rhs])
+    match (a_ndim, b_ndim) {
+        (1, 1) => {
+            let a_view = a.view().into_dimensionality::<Ix1>().unwrap();
+            let b_view = b.view().into_dimensionality::<Ix1>().unwrap();
+            let scalar = a_view.dot(&b_view);
+            ArrayD::from_elem(IxDyn(&[]), scalar)
+        }
+        (2, 1) => {
+            let a_view = a.view().into_dimensionality::<Ix2>().unwrap();
+            let b_view = b.view().into_dimensionality::<Ix1>().unwrap();
+            a_view.dot(&b_view).into_dyn().into_owned()
+        }
+        (1, 2) => {
+            let a_view = a.view().into_dimensionality::<Ix1>().unwrap();
+            let b_view = b.view().into_dimensionality::<Ix2>().unwrap();
+            a_view.dot(&b_view).into_dyn().into_owned()
+        }
+        (2, 2) => {
+            let a_view = a.view().into_dimensionality::<Ix2>().unwrap();
+            let b_view = b.view().into_dimensionality::<Ix2>().unwrap();
+            a_view.dot(&b_view).into_dyn().into_owned()
+        }
+        _ => todo!(),
     }
 }
 
-impl<T> ops::Sub for Tensor<T>
-where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Sub<Output = T> + 'static + Zero,
-{
-    type Output = Tensor<T>;
+#[derive(Debug, Clone)]
+pub struct TensorSum<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+}
 
-    fn sub(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.dtype(), rhs.dtype());
-        TensorSub::new().call(vec![self, rhs])
+impl<T: Clone + Debug + Zero + 'static> TensorSum<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
     }
 }
 
-impl<T> ops::Mul for Tensor<T>
-where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Mul<Output = T> + 'static + Zero,
-{
-    type Output = Tensor<T>;
+#[derive(Debug, Clone)]
+pub struct TensorBroadcastTo<T: Debug + Clone> {
+    pub(crate) marker: PhantomData<T>,
+    pub(crate) shape: Vec<usize>,
+}
 
-    fn mul(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.dtype(), rhs.dtype());
-        TensorMul::new().call(vec![self, rhs])
+impl<T: Clone + Debug + Zero + 'static> TensorBroadcastTo<T> {
+    pub(crate) fn new(shape: Vec<usize>) -> Self {
+        Self {
+            marker: PhantomData,
+            shape,
+        }
     }
 }
 
-impl<T> ops::Div for Tensor<T>
-where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Div<Output = T> + 'static + Zero,
-{
-    type Output = Tensor<T>;
+#[derive(Debug, Clone)]
+pub struct TensorPow<T: Debug + Clone> {
+    marker: PhantomData<T>,
+    pub(crate) power: i32,
+}
 
-    fn div(self, rhs: Self) -> Self::Output {
-        assert_eq!(self.dtype(), rhs.dtype());
-        TensorDiv::new().call(vec![self, rhs])
+impl<T: Clone + Debug + Zero + 'static> TensorPow<T> {
+    pub(crate) fn new(power: i32) -> Self {
+        Self {
+            marker: PhantomData,
+            power,
+        }
     }
 }
 
-impl<T> ops::Neg for Tensor<T>
-where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Neg<Output = T> + 'static + Zero,
-{
-    type Output = Tensor<T>;
+#[derive(Debug, Clone)]
+pub struct TensorTranspose<T: Debug + Clone> {
+    marker: PhantomData<T>,
+    pub(crate) shape: Vec<usize>,
+}
 
-    fn neg(self) -> Self::Output {
-        TensorNeg::new().call(vec![self])
+impl<T: Clone + Debug + Zero + 'static> TensorTranspose<T> {
+    pub(crate) fn new(shape: Vec<usize>) -> Self {
+        Self {
+            marker: PhantomData,
+            shape,
+        }
     }
 }
 
-impl<T> linalg::Dot<Tensor<T>> for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Neg<Output = T>
-        + 'static
-        + num_traits::identities::One
-        + Sub<Output = T>
-        + Copy
-        + std::ops::Div<Output = T>
-        + Zero,
-{
-    type Output = Tensor<T>;
+#[derive(Debug, Clone)]
+pub struct TensorReshape<T: Debug + Clone> {
+    marker: PhantomData<T>,
+    pub(crate) shape: Vec<usize>,
+}
 
-    fn dot(&self, rhs: &Tensor<T>) -> Self::Output {
-        assert_eq!(self.dtype(), rhs.dtype());
-        TensorMatMul::new().call(vec![self.to_owned(), rhs.to_owned()])
+impl<T: Clone + Debug + Zero + 'static> TensorReshape<T> {
+    pub(crate) fn new(shape: Vec<usize>) -> Self {
+        Self {
+            marker: PhantomData,
+            shape,
+        }
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static + num_traits::Pow<i32, Output = T>> Pow for Tensor<T> {
-    type Output = Tensor<T>;
-    type Exp = i32;
+#[derive(Debug, Clone)]
+pub struct TensorLog<T: Debug + Clone> {
+    marker: PhantomData<T>,
+    pub(crate) rhs: T,
+}
 
-    fn pow(&self, exp: Self::Exp) -> Self::Output {
-        TensorPow::new(exp).call(vec![self.to_owned()])
+impl<T: Clone + Debug + Zero + 'static> TensorLog<T> {
+    pub(crate) fn new(rhs: T) -> Self {
+        Self {
+            marker: PhantomData,
+            rhs,
+        }
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static> Sum for Tensor<T> {
-    type Output = Tensor<T>;
+// TensorExp is e^x
+#[derive(Debug, Clone)]
+pub struct TensorExp<T: Debug + Clone> {
+    marker: PhantomData<T>,
+}
 
-    fn sum(&self) -> Self::Output {
-        TensorSum::new().call(vec![self.to_owned()])
+impl<T: Clone + Debug + Zero + 'static> TensorExp<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
     }
 }
 
-#[cfg(test)]
-mod tests {
+#[derive(Debug, Clone)]
+pub struct TensorRelu<T: Debug + Clone> {
+    marker: PhantomData<T>,
+}
 
-    use ndarray::linalg::Dot;
-
-    use crate::autograd::ops::{Pow, Sum};
-    use crate::autograd::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
-
-    fn build_tensors() -> (Tensor<f64>, Tensor<f64>) {
-        let data = TensorData::new(
-            TensorDtype::Float64,
-            TensorInner::List(vec![1., 2., 3., 4.]),
-        );
-        let tensor = Tensor::new(data, Some(&[2, 2]));
-        let data2 = TensorData::new(
-            TensorDtype::Float64,
-            TensorInner::List(vec![1., 2., 3., 4.]),
-        );
-        let tensor2 = Tensor::new(data2, Some(&[2, 2]));
-        (tensor, tensor2)
+impl<T: Clone + Debug + Zero + 'static> TensorRelu<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
     }
+}
 
-    #[test]
-    fn test_tensor_add() {
-        let (tensor, tensor2) = build_tensors();
-        let t3 = tensor + tensor2;
-        assert_eq!(t3.shape(), &[2, 2]);
-        assert_eq!(t3.ndarray()[[0, 0]], 2f64);
+#[derive(Debug, Clone)]
+pub struct TensorSigmoid<T: Debug + Clone> {
+    marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + Zero + 'static> TensorSigmoid<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
     }
+}
 
-    #[test]
-    fn test_tensor_sub() {
-        let (tensor, tensor2) = build_tensors();
-        let t3 = tensor - tensor2;
-        assert_eq!(t3.shape(), &[2, 2]);
-        assert_eq!(t3.ndarray()[[0, 0]], 0f64);
+#[derive(Debug, Clone)]
+pub struct TensorTanh<T: Debug + Clone> {
+    marker: PhantomData<T>,
+}
+
+impl<T: Clone + Debug + Zero + 'static> TensorTanh<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
     }
+}
 
-    #[test]
-    fn test_tensor_mul() {
-        let (tensor, tensor2) = build_tensors();
-        let t3 = tensor * tensor2;
-        assert_eq!(t3.shape(), &[2, 2]);
-        assert_eq!(t3.ndarray()[[0, 0]], 1f64);
-        assert_eq!(t3.ndarray()[[1, 0]], 9f64);
-    }
+#[derive(Debug, Clone)]
+pub struct TensorSqrt<T: Debug + Clone> {
+    marker: PhantomData<T>,
+}
 
-    #[test]
-    fn test_tensor_div() {
-        let (tensor, tensor2) = build_tensors();
-        let t3 = tensor + tensor2.clone();
-        let t4 = t3 / tensor2;
-        assert_eq!(t4.shape(), &[2, 2]);
-        assert_eq!(t4.ndarray()[[0, 0]], 2f64);
-    }
-
-    #[test]
-    fn test_tensor_neg() {
-        let (_, tensor2) = build_tensors();
-        let t3 = -tensor2;
-        assert_eq!(t3.shape(), &[2, 2]);
-        assert_eq!(t3.ndarray()[[0, 0]], -1f64);
-    }
-
-    #[test]
-    fn test_tensor_matmul() {
-        let (tensor, tensor2) = build_tensors();
-        let t3 = tensor.dot(&tensor2);
-        assert_eq!(t3.shape(), &[2, 2]);
-        assert_eq!(t3.ndarray()[[0, 0]], 7f64);
-        assert_eq!(t3.ndarray()[[1, 0]], 15f64);
-    }
-
-    #[test]
-    fn test_tensor_sum() {
-        let (tensor, _) = build_tensors();
-        let sum = tensor.sum();
-        assert_eq!(sum.shape(), &[1]);
-        assert_eq!(sum.data[0], (1 + 2 + 3 + 4) as f64);
-    }
-
-    #[test]
-    fn test_tensor_pow() {
-        let (tensor, _) = build_tensors();
-        let sum = tensor.pow(2);
-        assert_eq!(sum.shape(), &[2, 2]);
-        assert_eq!(sum.data[[1, 0]], 9_f64);
+impl<T: Clone + Debug + Zero + 'static> TensorSqrt<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
     }
 }
