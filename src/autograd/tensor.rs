@@ -7,6 +7,7 @@ use std::{
 };
 
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
+use pyo3::pyclass;
 
 use super::ops::TensorOp;
 
@@ -95,9 +96,12 @@ where
         // length we are attempting to make an ArrayBase.
         let arr: ArrayBase<_, IxDyn, _> = match data.inner {
             TensorInner::List(items) => {
-                assert!(shape.is_some());
-                let _shape_len: usize = shape.unwrap().iter().sum();
-                ArrayBase::from_shape_vec(shape.unwrap(), items).unwrap()
+                if let Some(sh) = shape {
+                    let _shape_len: usize = sh.iter().sum();
+                    ArrayBase::from_shape_vec(sh, items).unwrap()
+                } else {
+                    ArrayD::from_shape_vec(IxDyn(&[items.len()]), items).unwrap()
+                }
             }
             TensorInner::Scalar(item) => {
                 assert!(shape.is_some());

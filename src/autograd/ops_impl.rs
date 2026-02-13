@@ -8,7 +8,8 @@ use std::vec;
 
 use crate::autograd::forward::Forward;
 use crate::autograd::ops::{
-    TensorAdd, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorPow, TensorSub, TensorSum,
+    TensorAdd, TensorBroadcastTo, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorPow,
+    TensorReshape, TensorSub, TensorSum, TensorTranspose,
 };
 use ndarray_rand::rand_distr::num_traits::{self, Zero};
 
@@ -25,6 +26,33 @@ trait Pow {
     type Exp;
 
     fn pow(&self, exp: Self::Exp) -> Self::Output;
+}
+
+trait MatMul {
+    type Output;
+
+    fn matmul(&self, rhs: &Self::Output) -> Self::Output;
+}
+
+pub trait BroastcastTo {
+    type Output;
+    type Shape;
+
+    fn broadcast_to(&self, exp: Self::Shape) -> Self::Output;
+}
+
+trait Reshape {
+    type Output;
+    type Shape;
+
+    fn reshape(&self, exp: Self::Shape) -> Self::Output;
+}
+
+trait Transpose {
+    type Output;
+    type Shape;
+
+    fn transpose(&self, exp: Self::Shape) -> Self::Output;
 }
 
 impl<T> ops::Add for Tensor<T>
@@ -107,6 +135,27 @@ where
     }
 }
 
+impl<T> MatMul for Tensor<T>
+where
+    T: Clone
+        + Debug
+        + ops::Add<Output = T>
+        + ops::Neg<Output = T>
+        + 'static
+        + num_traits::identities::One
+        + Sub<Output = T>
+        + Copy
+        + std::ops::Div<Output = T>
+        + Zero,
+{
+    type Output = Tensor<T>;
+
+    fn matmul(&self, rhs: &Tensor<T>) -> Self::Output {
+        assert_eq!(self.dtype(), rhs.dtype());
+        TensorMatMul::new().call(vec![self.to_owned(), rhs.to_owned()])
+    }
+}
+
 impl<T: Clone + Debug + Zero + 'static + num_traits::Pow<i32, Output = T>> Pow for Tensor<T> {
     type Output = Tensor<T>;
     type Exp = i32;
@@ -124,12 +173,39 @@ impl<T: Clone + Debug + Zero + 'static> Sum for Tensor<T> {
     }
 }
 
+impl<T: Clone + Debug + Zero + 'static> BroastcastTo for Tensor<T> {
+    type Output = Tensor<T>;
+    type Shape = Vec<usize>;
+
+    fn broadcast_to(&self, shape: Self::Shape) -> Self::Output {
+        TensorBroadcastTo::new(shape).call(vec![self.to_owned()])
+    }
+}
+
+impl<T: Clone + Debug + Zero + 'static> Reshape for Tensor<T> {
+    type Output = Tensor<T>;
+    type Shape = Vec<usize>;
+
+    fn reshape(&self, shape: Self::Shape) -> Self::Output {
+        TensorReshape::new(shape).call(vec![self.to_owned()])
+    }
+}
+
+impl<T: Clone + Debug + Zero + 'static> Transpose for Tensor<T> {
+    type Output = Tensor<T>;
+    type Shape = Vec<usize>;
+
+    fn transpose(&self, shape: Self::Shape) -> Self::Output {
+        TensorTranspose::new(shape).call(vec![self.to_owned()])
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use ndarray::linalg::Dot;
 
-    use crate::autograd::ops_impl::{Pow, Sum};
+    use crate::autograd::ops_impl::{BroastcastTo, MatMul, Pow, Reshape, Sum, Transpose};
     use crate::autograd::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
 
     fn build_tensors() -> (Tensor<f64>, Tensor<f64>) {
@@ -195,6 +271,10 @@ mod tests {
         assert_eq!(t3.shape(), &[2, 2]);
         assert_eq!(t3.ndarray()[[0, 0]], 7f64);
         assert_eq!(t3.ndarray()[[1, 0]], 15f64);
+        let t4 = tensor.matmul(&tensor2);
+        assert_eq!(t4.shape(), &[2, 2]);
+        assert_eq!(t4.ndarray()[[0, 0]], 7f64);
+        assert_eq!(t4.ndarray()[[1, 0]], 15f64);
     }
 
     #[test]
@@ -211,5 +291,32 @@ mod tests {
         let sum = tensor.pow(2);
         assert_eq!(sum.shape(), &[2, 2]);
         assert_eq!(sum.data[[1, 0]], 9_f64);
+    }
+
+    #[test]
+    fn test_tensor_broadcast_to() {
+        let (tensor, _) = build_tensors();
+        let sum = tensor.broadcast_to(vec![2, 2, 2]);
+        assert_eq!(sum.shape(), &[2, 2, 2]);
+    }
+
+    #[test]
+    fn test_tensor_reshape() {
+        let tensor = Tensor::new(
+            TensorData::new(
+                TensorDtype::Float64,
+                TensorInner::List(vec![1., 2., 3., 4.]),
+            ),
+            None,
+        );
+        let sum = tensor.reshape(vec![2, 2]);
+        assert_eq!(sum.shape(), &[2, 2]);
+    }
+
+    #[test]
+    fn test_tensor_transpose() {
+        let (tensor, _) = build_tensors();
+        let sum = tensor.transpose(vec![2, 2]);
+        assert_eq!(sum.shape(), &[2, 2]);
     }
 }

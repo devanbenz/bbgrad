@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use super::tensor::{Tensor, TensorBuilder, TensorData, TensorInner};
@@ -10,8 +9,7 @@ use crate::autograd::ops::{
     TensorNeg, TensorOp, TensorPow, TensorRelu, TensorReshape, TensorSigmoid, TensorSqrt,
     TensorSub, TensorSum, TensorTanh, TensorTranspose, dot_dyn,
 };
-use ndarray::{ArrayBase, ArrayD, Ix1, Ix2, IxDyn, LinalgScalar, OwnedRepr};
-use num_traits::real::Real;
+use ndarray::{ArrayBase, ArrayD, IxDyn, LinalgScalar, OwnedRepr};
 use num_traits::{Float, Pow, Zero};
 
 pub(crate) trait Backward {

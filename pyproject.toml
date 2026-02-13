@@ -1,0 +1,13 @@
+[project]
+name = "bbgrad"
+version = "0.1.0"
+description = "bindings for bbgrad library"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "maturin>=1.11.5",
+]
+
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"

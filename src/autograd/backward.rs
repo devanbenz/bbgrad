@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub(crate) trait Backward {
     type OutGrad;
     type Node;

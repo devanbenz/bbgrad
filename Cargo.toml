@@ -1,11 +1,12 @@
 [package]
-name = "deep-learning-lib"
+name = "bbgrad"
 version = "0.1.0"
 edition = "2024"
 
 [lib]
 name = "bbgrad"
 path = "src/lib.rs"
+crate-type = ["cdylib"]
 
 [dependencies]
 ndarray = { version = "0.17.2", features = ["blas", "std"] }
@@ -13,3 +14,4 @@ ndarray-rand = "0.16.0"
 blas-src = { version = "0.14.0", features = ["openblas"] }
 openblas-src = { version = "0.10", features = ["cblas", "system"] }
 num-traits = "0.2.19"
+pyo3 = "0.28.0"
