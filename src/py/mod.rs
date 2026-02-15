@@ -1,6 +1,6 @@
 use pyo3::{pyclass, pymethods};
 
-use crate::autograd::tensor::{Tensor, TensorData, TensorInner};
+use crate::autograd::tensor::{Tensor, TensorData, TensorDataInner};
 
 #[pyo3::pymodule]
 #[pyo3(name = "bbgrad")]
@@ -28,14 +28,14 @@ impl PythonTensor {
             inner: Tensor::new(
                 TensorData::new(
                     crate::autograd::tensor::TensorDtype::Float64,
-                    TensorInner::List(data),
+                    TensorDataInner::List(data),
                 ),
                 None,
             ),
         }
     }
 
-    pub fn shape(&self) -> &[usize] {
-        self.inner.shape()
+    pub fn shape(&self) -> Vec<usize> {
+        self.inner.clone().shape()
     }
 }

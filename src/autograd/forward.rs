@@ -3,13 +3,14 @@
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
-use super::tensor::{Tensor, TensorBuilder, TensorData, TensorInner};
+use super::tensor::{Tensor, TensorBuilder, TensorData, TensorDataInner};
 use crate::autograd::ops::{
     TensorAdd, TensorBroadcastTo, TensorDiv, TensorExp, TensorLog, TensorMatMul, TensorMul,
     TensorNeg, TensorOp, TensorPow, TensorRelu, TensorReshape, TensorSigmoid, TensorSqrt,
     TensorSub, TensorSum, TensorTanh, TensorTranspose, dot_dyn,
 };
 use ndarray::{ArrayBase, ArrayD, IxDyn, LinalgScalar, OwnedRepr};
+use num_traits::real::Real;
 use num_traits::{Float, Pow, Zero};
 
 pub(crate) trait Backward {
@@ -28,15 +29,15 @@ where
         let requires_grad = inputs.iter().any(|t| t.requires_grad());
         let dtype = inputs[0].dtype();
         let forward_output =
-            self.forward(inputs.iter().map(|f| f.data.clone()).collect::<Vec<
+            self.forward(inputs.iter().map(|f| f.ndarray().clone()).collect::<Vec<
                 ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>,
             >>());
         let mut output_tensor = TensorBuilder::new(
-            TensorData::new(dtype, TensorInner::NdArray(forward_output)),
+            TensorData::new(dtype, TensorDataInner::NdArray(forward_output)),
             None,
         );
         if requires_grad {
-            output_tensor.input(inputs);
+            output_tensor.inputs(inputs);
             output_tensor.op(self.operation());
         }
 

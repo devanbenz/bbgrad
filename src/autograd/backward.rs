@@ -34,6 +34,6 @@ impl<T: Clone + Debug> Backward for TensorMul<T> {
     type Output = (Tensor<T>, Tensor<T>);
 
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
-        assert!(node.input.is_some());
+        todo!()
     }
 }

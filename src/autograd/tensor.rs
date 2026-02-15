@@ -1,14 +1,14 @@
 #![allow(dead_code)]
 
+use super::ops::TensorOp;
+use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
+use ndarray_rand::rand_distr::num_traits;
 use std::ops::Add;
+use std::sync::{Arc, LockResult, Mutex, RwLock, RwLockReadGuard};
 use std::{
     any::TypeId,
     fmt::{Debug, Display},
 };
-
-use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
-
-use super::ops::TensorOp;
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {
@@ -25,13 +25,13 @@ pub enum TensorDtype {
 }
 
 #[derive(Debug)]
-pub enum TensorInner<T>
+pub enum TensorDataInner<T>
 where
     T: Clone + Debug,
 {
     List(Vec<T>),
     Scalar(T),
-    Tensor(Tensor<T>),
+    Tensor(TensorInner<T>),
     NdArray(ArrayBase<OwnedRepr<T>, IxDyn, T>),
 }
 
@@ -39,7 +39,7 @@ pub struct TensorData<T>
 where
     T: Clone + Debug + Add<Output = T>,
 {
-    inner: TensorInner<T>,
+    inner: TensorDataInner<T>,
     dtype: TensorDtype,
 }
 
@@ -47,7 +47,7 @@ impl<T> TensorData<T>
 where
     T: Clone + Debug + 'static + Add<Output = T>,
 {
-    pub fn new(dtype: TensorDtype, inner: TensorInner<T>) -> Self {
+    pub fn new(dtype: TensorDtype, inner: TensorDataInner<T>) -> Self {
         match dtype {
             TensorDtype::Float64 => {
                 assert_eq!(TypeId::of::<f64>(), TypeId::of::<T>())
@@ -66,23 +66,105 @@ where
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct Tensor<T: Clone + Debug> {
+    inner: Arc<RwLock<TensorInner<T>>>,
+    inputs: Arc<RwLock<Vec<Tensor<T>>>>,
+}
+
+impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero> Tensor<T> {
+    pub fn new(data: TensorData<T>, shape: Option<&[usize]>) -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(TensorInner::new(data, shape))),
+            inputs: Arc::new(RwLock::new(vec![])),
+        }
+    }
+
+    // This method does not return a reference to the inputs, it's a copy.
+    pub fn inputs(&self) -> Vec<Tensor<T>> {
+        match self.inputs.read() {
+            Ok(val) => val.to_vec(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn backward(&self) {
+        todo!();
+    }
+
+    pub fn shape(&self) -> Vec<usize> {
+        match self.inner.read() {
+            Ok(val) => val.data.shape().to_vec(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn dtype(&self) -> TensorDtype {
+        match self.inner.read() {
+            Ok(val) => val.dtype.clone(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn requires_grad(&self) -> bool {
+        match self.inner.read() {
+            Ok(val) => val.requires_grad,
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn ndim(&self) -> usize {
+        match self.inner.read() {
+            Ok(val) => val.data.ndim(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn size(&self) -> usize {
+        match self.inner.read() {
+            Ok(val) => val.data.len(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn device(&self) -> TensorDevice {
+        match self.inner.read() {
+            Ok(val) => val.device.clone(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn ndarray(&self) -> ArrayBase<OwnedRepr<T>, IxDyn, T> {
+        match self.inner.read() {
+            Ok(val) => val.data.clone(),
+            Err(err) => panic!("{:?}", err),
+        }
+    }
+
+    pub fn detach(&self) -> Tensor<T> {
+        Tensor {
+            inner: self.inner.clone(),
+            inputs: self.inputs.clone(),
+        }
+    }
+}
+
 // TODO: Rename this to TensorInner and wrap it in an Arc within a new Tensor type
 #[derive(Debug, Clone)]
-pub struct Tensor<T>
+pub struct TensorInner<T>
 where
     T: Clone + Debug,
 {
     pub data: ArrayBase<OwnedRepr<T>, IxDyn, T>,
     grad: Option<ArcArray<T, IxDyn>>,
     requires_grad: bool,
-    input: Option<Vec<Tensor<T>>>,
     device: TensorDevice,
     dtype: TensorDtype,
     op: Option<TensorOp<T>>,
 }
 
 // TODO: Support nested lists
-impl<T> Tensor<T>
+impl<T> TensorInner<T>
 where
     T: Clone + Debug + Add<Output = T> + num_traits::identities::Zero,
 {
@@ -94,7 +176,7 @@ where
         // TODO: Need to check shape vs data to ensure that shape matches the data
         // length we are attempting to make an ArrayBase.
         let arr: ArrayBase<_, IxDyn, _> = match data.inner {
-            TensorInner::List(items) => {
+            TensorDataInner::List(items) => {
                 if let Some(sh) = shape {
                     let _shape_len: usize = sh.iter().sum();
                     ArrayBase::from_shape_vec(sh, items).unwrap()
@@ -102,7 +184,7 @@ where
                     ArrayD::from_shape_vec(IxDyn(&[items.len()]), items).unwrap()
                 }
             }
-            TensorInner::Scalar(item) => {
+            TensorDataInner::Scalar(item) => {
                 assert!(shape.is_some());
                 assert_eq!(
                     shape.unwrap(),
@@ -111,8 +193,8 @@ where
                 );
                 ArrayBase::from_shape_vec(shape.unwrap(), vec![item]).unwrap()
             }
-            TensorInner::Tensor(tensor) => tensor.data,
-            TensorInner::NdArray(array_base) => {
+            TensorDataInner::Tensor(tensor) => tensor.data,
+            TensorDataInner::NdArray(array_base) => {
                 if let Some(shape) = shape {
                     if array_base.shape() != shape {
                         array_base.to_shape(shape).unwrap().to_owned()
@@ -130,68 +212,9 @@ where
             data: arr,
             grad: None,
             requires_grad: true,
-            input: None,
             device: TensorDevice::Cpu,
             dtype: data.dtype,
             op: None,
-        }
-    }
-
-    pub fn with_inputs(
-        data: TensorData<T>,
-        inputs: Vec<Tensor<T>>,
-        shape: Option<&[usize]>,
-    ) -> Self {
-        let mut tensor = Tensor::new(data, shape);
-        tensor.input = Some(inputs);
-        tensor
-    }
-
-    pub fn inputs(&self) -> Option<Vec<Tensor<T>>> {
-        self.clone().input
-    }
-
-    pub fn backward(&self) {
-        todo!();
-    }
-
-    pub fn shape(&self) -> &[usize] {
-        self.data.shape()
-    }
-
-    pub fn dtype(&self) -> TensorDtype {
-        self.dtype.clone()
-    }
-
-    pub fn requires_grad(&self) -> bool {
-        self.requires_grad
-    }
-
-    pub fn ndim(&self) -> usize {
-        self.data.ndim()
-    }
-
-    pub fn size(&self) -> usize {
-        self.data.len()
-    }
-
-    pub fn device(&self) -> TensorDevice {
-        self.device.clone()
-    }
-
-    pub fn ndarray(&self) -> ArrayBase<OwnedRepr<T>, IxDyn, T> {
-        self.data.clone()
-    }
-
-    pub fn detach(&self) -> Tensor<T> {
-        Tensor {
-            data: self.data.clone(),
-            grad: self.grad.clone(),
-            requires_grad: false,
-            input: self.input.clone(),
-            device: self.device.clone(),
-            dtype: self.dtype.clone(),
-            op: self.op.clone(),
         }
     }
 }
@@ -201,7 +224,7 @@ where
     T: Clone + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.data)
+        write!(f, "{:?}", self.inner.read().unwrap().data)
     }
 }
 
@@ -210,16 +233,15 @@ where
     T: Clone + Debug + 'static,
 {
     fn zero() -> Self {
-        // Create a scalar (0-dim) tensor holding zero
         let data = ArrayD::<T>::zeros(IxDyn(&[]));
         Tensor::new(
-            TensorData::new(TensorDtype::Float64, TensorInner::NdArray(data)),
+            TensorData::new(TensorDtype::Float64, TensorDataInner::NdArray(data)),
             None,
         )
     }
 
     fn is_zero(&self) -> bool {
-        self.data.iter().all(|x| x.is_zero())
+        self.inner.read().unwrap().data.iter().all(|x| x.is_zero())
     }
 }
 
@@ -241,17 +263,22 @@ where
     }
 
     pub fn device(&mut self, device: TensorDevice) -> &mut TensorBuilder<T> {
-        self.tensor.device = device;
+        self.tensor.inner.write().unwrap().device = device;
         self
     }
 
-    pub fn input(&mut self, input: Vec<Tensor<T>>) -> &mut TensorBuilder<T> {
-        self.tensor.input = Some(input);
+    pub fn inputs(&mut self, input: Vec<Tensor<T>>) -> &mut TensorBuilder<T> {
+        match self.tensor.inputs.write() {
+            Ok(mut val) => {
+                *val = input;
+            }
+            Err(err) => panic!("{:?}", err),
+        }
         self
     }
 
     pub fn op(&mut self, op: TensorOp<T>) -> &mut TensorBuilder<T> {
-        self.tensor.op = Some(op);
+        self.tensor.inner.write().unwrap().op = Some(op);
         self
     }
 
@@ -269,25 +296,25 @@ mod tests {
     #[test]
     #[should_panic]
     fn tensor_data_test() {
-        let _ = TensorData::new(TensorDtype::Float64, TensorInner::Scalar(15f64));
+        let _ = TensorData::new(TensorDtype::Float64, TensorDataInner::Scalar(15f64));
         // Should panic with i32 as datatype for inner
-        let _ = TensorData::new(TensorDtype::Float64, TensorInner::Scalar(10i32));
+        let _ = TensorData::new(TensorDtype::Float64, TensorDataInner::Scalar(10i32));
     }
 
     #[test]
     fn tensor_test() {
-        let data = TensorData::new(TensorDtype::Float64, TensorInner::Scalar(15f64));
+        let data = TensorData::new(TensorDtype::Float64, TensorDataInner::Scalar(15f64));
         let _tensor = Tensor::new(data, Some(&[1]));
         let data = TensorData::new(
             TensorDtype::Float64,
-            TensorInner::List(vec![1., 2., 3., 4.]),
+            TensorDataInner::List(vec![1., 2., 3., 4.]),
         );
         let _tensor = Tensor::new(data, Some(&[2, 2]));
         let data = TensorData::new(
             TensorDtype::Float64,
-            TensorInner::<f64>::NdArray(ArrayD::<f64>::zeros(IxDyn(&[3, 4, 5]))),
+            TensorDataInner::<f64>::NdArray(ArrayD::<f64>::zeros(IxDyn(&[3, 4, 5]))),
         );
-        let mut tensor = Tensor::new(data, None);
-        tensor.data[[2, 2, 2]] += 0.5;
+        let tensor = Tensor::new(data, None);
+        tensor.inner.clone().write().unwrap().data[[2, 2, 2]] += 0.5;
     }
 }

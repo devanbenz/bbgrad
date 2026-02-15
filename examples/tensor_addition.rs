@@ -1,4 +1,4 @@
-use bbgrad::autograd::tensor::{Tensor, TensorData, TensorDtype, TensorInner};
+use bbgrad::autograd::tensor::{Tensor, TensorData, TensorDataInner, TensorDtype};
 use ndarray::{ArrayD, IxDyn};
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::StandardNormal;
@@ -6,7 +6,7 @@ use ndarray_rand::rand_distr::StandardNormal;
 fn main() {
     let data = TensorData::new(
         TensorDtype::Float64,
-        TensorInner::<f64>::NdArray(ArrayD::<f64>::random(
+        TensorDataInner::<f64>::NdArray(ArrayD::<f64>::random(
             IxDyn(&[200, 100, 250]),
             StandardNormal,
         )),
@@ -14,7 +14,7 @@ fn main() {
     let t1 = Tensor::new(data, None);
     let data2 = TensorData::new(
         TensorDtype::Float64,
-        TensorInner::<f64>::NdArray(ArrayD::<f64>::random(
+        TensorDataInner::<f64>::NdArray(ArrayD::<f64>::random(
             IxDyn(&[200, 100, 250]),
             StandardNormal,
         )),
@@ -22,8 +22,14 @@ fn main() {
     let t2 = Tensor::new(data2, None);
 
     let _ = t1.clone() + t2.clone();
-    println!("t1 [[10, 10, 10]] before add={}", t1.data[[10, 10, 10]]);
-    println!("t2 [[10, 10, 10]] before add={}\n", t2.data[[10, 10, 10]]);
+    println!(
+        "t1 [[10, 10, 10]] before add={}",
+        t1.ndarray()[[10, 10, 10]]
+    );
+    println!(
+        "t2 [[10, 10, 10]] before add={}\n",
+        t2.ndarray()[[10, 10, 10]]
+    );
 
     let mut times = Vec::new();
     for _ in 0..100 {
@@ -43,5 +49,5 @@ fn main() {
 
     println!("tensor size={}", t3.size());
     println!("tensor shape {:?}", t3.shape());
-    println!("t3 [[10, 10, 10]] after add={}", t3.data[[10, 10, 10]]);
+    println!("t3 [[10, 10, 10]] after add={}", t3.ndarray()[[10, 10, 10]]);
 }
