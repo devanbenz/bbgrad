@@ -7,7 +7,6 @@ use std::{
 };
 
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
-use pyo3::pyclass;
 
 use super::ops::TensorOp;
 
@@ -146,6 +145,10 @@ where
         let mut tensor = Tensor::new(data, shape);
         tensor.input = Some(inputs);
         tensor
+    }
+
+    pub fn inputs(&self) -> Option<Vec<Tensor<T>>> {
+        self.clone().input
     }
 
     pub fn backward(&self) {
