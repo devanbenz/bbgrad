@@ -59,7 +59,7 @@ trait Transpose {
 
 impl<T> ops::Add for Tensor<T>
 where
-    T: Clone + Debug + ops::Add<Output = T> + 'static + Zero,
+    T: Clone + Debug + ops::Add<Output = T> + 'static + Zero + num_traits::One,
 {
     type Output = Tensor<T>;
 
@@ -71,7 +71,13 @@ where
 
 impl<T> ops::Sub for Tensor<T>
 where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Sub<Output = T> + 'static + Zero,
+    T: Clone
+        + Debug
+        + ops::Add<Output = T>
+        + ops::Sub<Output = T>
+        + 'static
+        + Zero
+        + num_traits::One,
 {
     type Output = Tensor<T>;
 
@@ -83,7 +89,13 @@ where
 
 impl<T> ops::Mul for Tensor<T>
 where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Mul<Output = T> + 'static + Zero,
+    T: Clone
+        + Debug
+        + ops::Add<Output = T>
+        + ops::Mul<Output = T>
+        + 'static
+        + Zero
+        + num_traits::One,
 {
     type Output = Tensor<T>;
 
@@ -95,7 +107,13 @@ where
 
 impl<T> ops::Div for Tensor<T>
 where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Div<Output = T> + 'static + Zero,
+    T: Clone
+        + Debug
+        + ops::Add<Output = T>
+        + ops::Div<Output = T>
+        + 'static
+        + Zero
+        + num_traits::One,
 {
     type Output = Tensor<T>;
 
@@ -107,7 +125,13 @@ where
 
 impl<T> ops::Neg for Tensor<T>
 where
-    T: Clone + Debug + ops::Add<Output = T> + ops::Neg<Output = T> + 'static + Zero,
+    T: Clone
+        + Debug
+        + ops::Add<Output = T>
+        + ops::Neg<Output = T>
+        + 'static
+        + Zero
+        + num_traits::One,
 {
     type Output = Tensor<T>;
 
@@ -158,7 +182,9 @@ where
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static + num_traits::Pow<i32, Output = T>> Pow for Tensor<T> {
+impl<T: Clone + Debug + Zero + num_traits::One + 'static + num_traits::Pow<i32, Output = T>> Pow
+    for Tensor<T>
+{
     type Output = Tensor<T>;
     type Exp = i32;
 
@@ -167,7 +193,7 @@ impl<T: Clone + Debug + Zero + 'static + num_traits::Pow<i32, Output = T>> Pow f
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static> Sum for Tensor<T> {
+impl<T: Clone + Debug + Zero + num_traits::One + 'static> Sum for Tensor<T> {
     type Output = Tensor<T>;
 
     fn sum(&self) -> Self::Output {
@@ -175,7 +201,7 @@ impl<T: Clone + Debug + Zero + 'static> Sum for Tensor<T> {
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static> BroastcastTo for Tensor<T> {
+impl<T: Clone + Debug + Zero + num_traits::One + 'static> BroastcastTo for Tensor<T> {
     type Output = Tensor<T>;
     type Shape = Vec<usize>;
 
@@ -184,7 +210,7 @@ impl<T: Clone + Debug + Zero + 'static> BroastcastTo for Tensor<T> {
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static> Reshape for Tensor<T> {
+impl<T: Clone + Debug + Zero + num_traits::One + 'static> Reshape for Tensor<T> {
     type Output = Tensor<T>;
     type Shape = Vec<usize>;
 
@@ -193,7 +219,7 @@ impl<T: Clone + Debug + Zero + 'static> Reshape for Tensor<T> {
     }
 }
 
-impl<T: Clone + Debug + Zero + 'static> Transpose for Tensor<T> {
+impl<T: Clone + Debug + Zero + num_traits::One + 'static> Transpose for Tensor<T> {
     type Output = Tensor<T>;
     type Shape = Vec<usize>;
 
@@ -344,19 +370,26 @@ mod tests {
 
     #[test]
     fn test_tensor_scalar_mul() {
-        let (tensor, tensor2) = build_tensors();
-        let t3 = tensor * tensor2;
+        let (tensor, _) = build_tensors();
+        let t3 = tensor.clone() * 10_f64;
+        let t4 = 10_f64 * tensor;
         assert_eq!(t3.shape(), &[2, 2]);
-        assert_eq!(t3.ndarray()[[0, 0]], 1f64);
-        assert_eq!(t3.ndarray()[[1, 0]], 9f64);
+        assert_eq!(t3.ndarray()[[0, 0]], 10f64);
+        assert_eq!(t3.ndarray()[[1, 0]], 30f64);
+        assert_eq!(t4.shape(), &[2, 2]);
+        assert_eq!(t4.ndarray()[[0, 0]], 10f64);
+        assert_eq!(t4.ndarray()[[1, 0]], 30f64);
     }
 
     #[test]
     fn test_tensor_scalar_div() {
         let (tensor, tensor2) = build_tensors();
         let t3 = tensor + tensor2.clone();
-        let t4 = t3 / tensor2;
+        let t4 = t3.clone() / 10_f64;
+        let t5 = t3 / 10_f64;
         assert_eq!(t4.shape(), &[2, 2]);
-        assert_eq!(t4.ndarray()[[0, 0]], 2f64);
+        assert_eq!(t4.ndarray()[[0, 0]], 0.2f64);
+        assert_eq!(t5.shape(), &[2, 2]);
+        assert_eq!(t5.ndarray()[[0, 0]], 0.2f64);
     }
 }

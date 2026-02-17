@@ -3,8 +3,9 @@
 use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 use ndarray_rand::rand_distr::num_traits;
+use std::collections::HashMap;
 use std::ops::Add;
-use std::sync::{Arc, LockResult, Mutex, RwLock, RwLockReadGuard};
+use std::sync::{Arc, RwLock};
 use std::{
     any::TypeId,
     fmt::{Debug, Display},
@@ -72,12 +73,16 @@ pub struct Tensor<T: Clone + Debug> {
     inputs: Arc<RwLock<Vec<Tensor<T>>>>,
 }
 
-impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero> Tensor<T> {
+impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero + num_traits::One + 'static> Tensor<T> {
     pub fn new(data: TensorData<T>, shape: Option<&[usize]>) -> Self {
         Self {
             inner: Arc::new(RwLock::new(TensorInner::new(data, shape))),
             inputs: Arc::new(RwLock::new(vec![])),
         }
+    }
+
+    pub fn id(&self) -> usize {
+        Arc::as_ptr(&self.inner) as usize
     }
 
     // This method does not return a reference to the inputs, it's a copy.
@@ -88,8 +93,18 @@ impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero> Tensor<T> {
         }
     }
 
-    pub fn backward(&self) {
-        todo!();
+    pub fn backward(&self, grad: Option<Tensor<T>>) {
+        let mut grads: HashMap<usize, Tensor<T>> = HashMap::new();
+        if grad.is_none() {
+            let arr = ArrayD::ones(self.shape());
+            grads.insert(
+                self.id(),
+                Tensor::new(
+                    TensorData::new(self.dtype().clone(), TensorDataInner::NdArray(arr)),
+                    None,
+                ),
+            );
+        }
     }
 
     pub fn shape(&self) -> Vec<usize> {
@@ -228,7 +243,7 @@ where
     }
 }
 
-impl<T: num_traits::Zero + Clone> num_traits::Zero for Tensor<T>
+impl<T: num_traits::Zero + num_traits::One + Clone> num_traits::Zero for Tensor<T>
 where
     T: Clone + Debug + 'static,
 {
@@ -254,7 +269,7 @@ where
 
 impl<T> TensorBuilder<T>
 where
-    T: Clone + Debug + Add<Output = T> + num_traits::identities::Zero,
+    T: Clone + Debug + Add<Output = T> + num_traits::identities::Zero + num_traits::One + 'static,
 {
     pub fn new(data: TensorData<T>, shape: Option<&[usize]>) -> Self {
         Self {
@@ -316,5 +331,9 @@ mod tests {
         );
         let tensor = Tensor::new(data, None);
         tensor.inner.clone().write().unwrap().data[[2, 2, 2]] += 0.5;
+        let t2 = tensor + 1_f64;
+        // verify that cloned tensor has same id as original
+        let t3 = t2.clone();
+        assert_eq!(t2.id(), t3.id());
     }
 }

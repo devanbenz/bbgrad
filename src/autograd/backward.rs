@@ -29,7 +29,9 @@ impl<T: Clone + Debug> Backward for TensorAdd<T> {
     }
 }
 
-impl<T: Clone + Debug + Zero + Neg<Output = T> + 'static> Backward for TensorSub<T> {
+impl<T: Clone + Debug + Zero + num_traits::One + Neg<Output = T> + 'static> Backward
+    for TensorSub<T>
+{
     type OutGrad = Tensor<T>;
 
     type Node = Tensor<T>;
@@ -43,7 +45,9 @@ impl<T: Clone + Debug + Zero + Neg<Output = T> + 'static> Backward for TensorSub
     }
 }
 
-impl<T: Clone + Debug + Zero + Mul<Output = T> + 'static> Backward for TensorMul<T> {
+impl<T: Clone + Debug + Zero + Mul<Output = T> + num_traits::One + 'static> Backward
+    for TensorMul<T>
+{
     type OutGrad = Tensor<T>;
 
     type Node = Tensor<T>;
@@ -63,8 +67,17 @@ impl<T: Clone + Debug + Zero + Mul<Output = T> + 'static> Backward for TensorMul
     }
 }
 
-impl<T: Clone + Debug + Zero + Mul<Output = T> + num_traits::Pow<i32, Output = T> + 'static>
-    Backward for TensorPow<T>
+impl<
+    T: Clone
+        + Debug
+        + Zero
+        + num_traits::One
+        + Mul<Output = T>
+        + num_traits::Pow<i32, Output = T>
+        + 'static,
+> Backward for TensorPow<T>
+where
+    i32: Mul<Tensor<T>, Output = Tensor<T>>,
 {
     type OutGrad = Tensor<T>;
 
@@ -81,8 +94,37 @@ impl<T: Clone + Debug + Zero + Mul<Output = T> + num_traits::Pow<i32, Output = T
 
         // derivative of (a * b) wrt a is out_grad * (x * b^x) * a^x-1
         // derivative of (a * b) wrt b is out_grad * (x * a^x) * b^x-1
-        let a = out_grade.clone() * b.clone().pow(self.power) * a.clone().pow(self.power - 1);
+        let a = out_grade.clone()
+            * (self.power * b.clone().pow(self.power))
+            * a.clone().pow(self.power - 1);
+        let b = out_grade.clone()
+            * (self.power * a.clone().pow(self.power))
+            * b.clone().pow(self.power - 1);
 
-        (out_grade.clone(), out_grade.clone())
+        (a, b)
     }
+}
+
+#[cfg(test)]
+mod backward_tests {
+    use crate::autograd::tensor::{TensorData, TensorDataInner, TensorDtype};
+
+    use super::*;
+
+    fn build_tensors() -> (Tensor<f64>, Tensor<f64>) {
+        let data = TensorData::new(
+            TensorDtype::Float64,
+            TensorDataInner::List(vec![1., 2., 3., 4.]),
+        );
+        let tensor = Tensor::new(data, Some(&[2, 2]));
+        let data2 = TensorData::new(
+            TensorDtype::Float64,
+            TensorDataInner::List(vec![1., 2., 3., 4.]),
+        );
+        let tensor2 = Tensor::new(data2, Some(&[2, 2]));
+        (tensor, tensor2)
+    }
+
+    #[test]
+    fn backward_add() {}
 }
