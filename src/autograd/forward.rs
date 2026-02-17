@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 
+use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul};
 use super::tensor::{Tensor, TensorBuilder, TensorData, TensorDataInner};
 use crate::autograd::ops::{
     TensorAdd, TensorBroadcastTo, TensorDiv, TensorExp, TensorLog, TensorMatMul, TensorMul,
@@ -10,16 +11,7 @@ use crate::autograd::ops::{
     TensorSub, TensorSum, TensorTanh, TensorTranspose, dot_dyn,
 };
 use ndarray::{ArrayBase, ArrayD, IxDyn, LinalgScalar, OwnedRepr};
-use num_traits::real::Real;
 use num_traits::{Float, Pow, Zero};
-
-pub(crate) trait Backward {
-    type OutGrad;
-    type Node;
-    type Output;
-
-    fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output;
-}
 
 pub(crate) trait Forward<T>
 where
@@ -306,5 +298,53 @@ impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorSqrt<T> {
 
     fn operation(&self) -> TensorOp<T> {
         TensorOp::Sqrt(TensorSqrt::new())
+    }
+}
+
+impl<T: Clone + Debug + Add<Output = T> + Zero + ndarray::ScalarOperand + 'static> Forward<T>
+    for TensorScalarAdd<T>
+{
+    fn forward(
+        &self,
+        inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
+    ) -> ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T> {
+        assert_eq!(inputs.len(), 1, "add scalar input requires length of 1");
+        &inputs[0] + self.scalar()
+    }
+
+    fn operation(&self) -> TensorOp<T> {
+        TensorOp::ScalarAdd(self.clone())
+    }
+}
+
+impl<T: Clone + Debug + Mul<Output = T> + Zero + ndarray::ScalarOperand + 'static> Forward<T>
+    for TensorScalarMul<T>
+{
+    fn forward(
+        &self,
+        inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
+    ) -> ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T> {
+        assert_eq!(inputs.len(), 1, "mul scalar input requires length of 1");
+        &inputs[0] * self.scalar()
+    }
+
+    fn operation(&self) -> TensorOp<T> {
+        TensorOp::ScalarMul(self.clone())
+    }
+}
+
+impl<T: Clone + Debug + Div<Output = T> + Zero + ndarray::ScalarOperand + 'static> Forward<T>
+    for TensorScalarDiv<T>
+{
+    fn forward(
+        &self,
+        inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
+    ) -> ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T> {
+        assert_eq!(inputs.len(), 1, "div scalar input requires length of 1");
+        &inputs[0] / self.scalar()
+    }
+
+    fn operation(&self) -> TensorOp<T> {
+        TensorOp::ScalarDiv(self.clone())
     }
 }

@@ -3,7 +3,7 @@
 use ndarray::linalg;
 use std::fmt::Debug;
 use std::marker::Copy;
-use std::ops::{self, Sub};
+use std::ops::{self, Add, Div, Mul, Sub};
 use std::vec;
 
 use crate::autograd::forward::Forward;
@@ -11,8 +11,10 @@ use crate::autograd::ops::{
     TensorAdd, TensorBroadcastTo, TensorDiv, TensorMatMul, TensorMul, TensorNeg, TensorPow,
     TensorReshape, TensorSub, TensorSum, TensorTranspose,
 };
+use crate::impl_tensor_op;
 use ndarray_rand::rand_distr::num_traits::{self, Zero};
 
+use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul};
 use super::tensor::Tensor;
 
 trait Sum {
@@ -21,7 +23,7 @@ trait Sum {
     fn sum(&self) -> Self::Output;
 }
 
-trait Pow {
+pub trait Pow {
     type Output;
     type Exp;
 
@@ -200,6 +202,10 @@ impl<T: Clone + Debug + Zero + 'static> Transpose for Tensor<T> {
     }
 }
 
+impl_tensor_op!(Add, add, TensorScalarAdd);
+impl_tensor_op!(Mul, mul, TensorScalarMul);
+impl_tensor_op!(Div, div, TensorScalarDiv);
+
 #[cfg(test)]
 mod tests {
 
@@ -318,5 +324,39 @@ mod tests {
         let (tensor, _) = build_tensors();
         let sum = tensor.transpose(vec![2, 2]);
         assert_eq!(sum.shape(), &[2, 2]);
+    }
+
+    #[test]
+    fn test_tensor_scalar_add() {
+        let (tensor, _) = build_tensors();
+        let t3 = 1_f64 + tensor.clone();
+        let t4 = tensor + 1_f64;
+        assert_eq!(t3.shape(), &[2, 2]);
+        assert_eq!(t3.ndarray()[[0, 0]], 2f64);
+        assert_eq!(t4.shape(), &[2, 2]);
+        assert_eq!(t4.ndarray()[[0, 0]], 2f64);
+    }
+
+    #[test]
+    fn test_tensor_scalar_sub() {
+        todo!()
+    }
+
+    #[test]
+    fn test_tensor_scalar_mul() {
+        let (tensor, tensor2) = build_tensors();
+        let t3 = tensor * tensor2;
+        assert_eq!(t3.shape(), &[2, 2]);
+        assert_eq!(t3.ndarray()[[0, 0]], 1f64);
+        assert_eq!(t3.ndarray()[[1, 0]], 9f64);
+    }
+
+    #[test]
+    fn test_tensor_scalar_div() {
+        let (tensor, tensor2) = build_tensors();
+        let t3 = tensor + tensor2.clone();
+        let t4 = t3 / tensor2;
+        assert_eq!(t4.shape(), &[2, 2]);
+        assert_eq!(t4.ndarray()[[0, 0]], 2f64);
     }
 }

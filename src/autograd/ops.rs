@@ -23,6 +23,9 @@ pub enum TensorOp<T: Debug + Clone> {
     Sigmoid(TensorSigmoid<T>),
     Tanh(TensorTanh<T>),
     Sqrt(TensorSqrt<T>),
+    ScalarMul(TensorScalarMul<T>),
+    ScalarAdd(TensorScalarAdd<T>),
+    ScalarDiv(TensorScalarDiv<T>),
 }
 
 #[derive(Debug, Clone)]
@@ -291,5 +294,62 @@ impl<T: Clone + Debug + Zero + 'static> TensorSqrt<T> {
         Self {
             marker: PhantomData,
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorScalarMul<T> {
+    marker: PhantomData<T>,
+    scalar: T,
+}
+
+impl<T: Clone + Debug + Zero + 'static> TensorScalarMul<T> {
+    pub(crate) fn new(scalar: T) -> Self {
+        Self {
+            marker: PhantomData,
+            scalar,
+        }
+    }
+
+    pub(crate) fn scalar(&self) -> T {
+        self.scalar.clone()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorScalarAdd<T> {
+    marker: PhantomData<T>,
+    scalar: T,
+}
+
+impl<T: Clone + Debug + Zero + 'static> TensorScalarAdd<T> {
+    pub(crate) fn new(scalar: T) -> Self {
+        Self {
+            marker: PhantomData,
+            scalar,
+        }
+    }
+
+    pub(crate) fn scalar(&self) -> T {
+        self.scalar.clone()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorScalarDiv<T> {
+    marker: PhantomData<T>,
+    scalar: T,
+}
+
+impl<T: Clone + Debug + Zero + 'static> TensorScalarDiv<T> {
+    pub(crate) fn new(scalar: T) -> Self {
+        Self {
+            marker: PhantomData,
+            scalar,
+        }
+    }
+
+    pub(crate) fn scalar(&self) -> T {
+        self.scalar.clone()
     }
 }
