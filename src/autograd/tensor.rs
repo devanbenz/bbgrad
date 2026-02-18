@@ -162,6 +162,7 @@ impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero + num_traits::One + '
         Tensor {
             inner: self.inner.clone(),
             inputs: self.inputs.clone(),
+            grad: self.grad.clone(),
         }
     }
 
