@@ -71,6 +71,7 @@ where
 pub struct Tensor<T: Clone + Debug> {
     inner: Arc<RwLock<TensorInner<T>>>,
     inputs: Arc<RwLock<Vec<Tensor<T>>>>,
+    grad: Arc<Option<RwLock<Tensor<T>>>>,
 }
 
 impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero + num_traits::One + 'static> Tensor<T> {
@@ -78,6 +79,7 @@ impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero + num_traits::One + '
         Self {
             inner: Arc::new(RwLock::new(TensorInner::new(data, shape))),
             inputs: Arc::new(RwLock::new(vec![])),
+            grad: Arc::new(None),
         }
     }
 
@@ -162,6 +164,9 @@ impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero + num_traits::One + '
             inputs: self.inputs.clone(),
         }
     }
+
+    // Shows computational graph of this tensor
+    pub fn graph(&self) {}
 }
 
 // TODO: Rename this to TensorInner and wrap it in an Arc within a new Tensor type
@@ -335,5 +340,9 @@ mod tests {
         // verify that cloned tensor has same id as original
         let t3 = t2.clone();
         assert_eq!(t2.id(), t3.id());
+        let t4 = t3.clone() * t2.clone();
+        let t4_inputs = t4.inputs.clone().read().unwrap().to_vec();
+        assert_eq!(t4_inputs[0].id(), t3.id());
+        assert_eq!(t4_inputs[1].id(), t2.id());
     }
 }
