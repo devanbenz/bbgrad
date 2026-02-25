@@ -3,7 +3,7 @@
 use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 use ndarray_rand::rand_distr::num_traits;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Add;
 use std::sync::{Arc, RwLock};
 use std::{
@@ -106,6 +106,13 @@ impl<T: Clone + Debug + Add<Output = T> + num_traits::Zero + num_traits::One + '
                     None,
                 ),
             );
+        }
+        let mut visited: HashSet<usize> = HashSet::new();
+        match self.inputs.write() {
+            Ok(inputs) => {
+                inputs.
+            }
+            Err(err) => panic!("{err}"),
         }
     }
 
