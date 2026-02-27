@@ -6,7 +6,7 @@ edition = "2024"
 [lib]
 name = "bbgrad"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 ndarray = { version = "0.17.2", features = ["blas", "std"] }

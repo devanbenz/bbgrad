@@ -1,9 +1,6 @@
 #![allow(dead_code)]
 
-use ndarray::linalg;
-use std::fmt::Debug;
-use std::marker::Copy;
-use std::ops::{self, Add, Div, Mul, Sub};
+use std::ops::{self, Add, Div, Mul};
 use std::vec;
 
 use crate::autograd::forward::Forward;
@@ -12,9 +9,9 @@ use crate::autograd::ops::{
     TensorReshape, TensorSub, TensorSum, TensorTranspose,
 };
 use crate::impl_tensor_op;
-use ndarray_rand::rand_distr::num_traits::{self, Zero};
 
-use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul};
+use super::ForwardType;
+use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul, TensorSigmoid};
 use super::tensor::Tensor;
 
 trait Sum {
@@ -30,7 +27,7 @@ pub trait Pow {
     fn pow(&self, exp: Self::Exp) -> Self::Output;
 }
 
-trait MatMul {
+pub trait MatMul {
     type Output;
 
     fn matmul(&self, rhs: &Self::Output) -> Self::Output;
@@ -57,10 +54,13 @@ trait Transpose {
     fn transpose(&self, exp: Self::Shape) -> Self::Output;
 }
 
-impl<T> ops::Add for Tensor<T>
-where
-    T: Clone + Debug + ops::Add<Output = T> + 'static + Zero + num_traits::One,
-{
+pub trait Sigmoid {
+    type Output;
+
+    fn sigmoid(&self) -> Self::Output;
+}
+
+impl<T: ForwardType> ops::Add for Tensor<T> {
     type Output = Tensor<T>;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -69,16 +69,7 @@ where
     }
 }
 
-impl<T> ops::Sub for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Sub<Output = T>
-        + 'static
-        + Zero
-        + num_traits::One,
-{
+impl<T: ForwardType> ops::Sub for Tensor<T> {
     type Output = Tensor<T>;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -87,16 +78,7 @@ where
     }
 }
 
-impl<T> ops::Mul for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Mul<Output = T>
-        + 'static
-        + Zero
-        + num_traits::One,
-{
+impl<T: ForwardType> ops::Mul for Tensor<T> {
     type Output = Tensor<T>;
 
     fn mul(self, rhs: Self) -> Self::Output {
@@ -105,16 +87,7 @@ where
     }
 }
 
-impl<T> ops::Div for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Div<Output = T>
-        + 'static
-        + Zero
-        + num_traits::One,
-{
+impl<T: ForwardType> ops::Div for Tensor<T> {
     type Output = Tensor<T>;
 
     fn div(self, rhs: Self) -> Self::Output {
@@ -123,16 +96,7 @@ where
     }
 }
 
-impl<T> ops::Neg for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Neg<Output = T>
-        + 'static
-        + Zero
-        + num_traits::One,
-{
+impl<T: ForwardType> ops::Neg for Tensor<T> {
     type Output = Tensor<T>;
 
     fn neg(self) -> Self::Output {
@@ -140,19 +104,7 @@ where
     }
 }
 
-impl<T> linalg::Dot<Tensor<T>> for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Neg<Output = T>
-        + 'static
-        + num_traits::identities::One
-        + Sub<Output = T>
-        + Copy
-        + std::ops::Div<Output = T>
-        + Zero,
-{
+impl<T: ForwardType> ndarray::linalg::Dot<Tensor<T>> for Tensor<T> {
     type Output = Tensor<T>;
 
     fn dot(&self, rhs: &Tensor<T>) -> Self::Output {
@@ -161,19 +113,7 @@ where
     }
 }
 
-impl<T> MatMul for Tensor<T>
-where
-    T: Clone
-        + Debug
-        + ops::Add<Output = T>
-        + ops::Neg<Output = T>
-        + 'static
-        + num_traits::identities::One
-        + Sub<Output = T>
-        + Copy
-        + std::ops::Div<Output = T>
-        + Zero,
-{
+impl<T: ForwardType> MatMul for Tensor<T> {
     type Output = Tensor<T>;
 
     fn matmul(&self, rhs: &Tensor<T>) -> Self::Output {
@@ -182,9 +122,7 @@ where
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static + num_traits::Pow<i32, Output = T>> Pow
-    for Tensor<T>
-{
+impl<T: ForwardType> Pow for Tensor<T> {
     type Output = Tensor<T>;
     type Exp = i32;
 
@@ -193,7 +131,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static + num_traits::Pow<i32, 
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Sum for Tensor<T> {
+impl<T: ForwardType> Sum for Tensor<T> {
     type Output = Tensor<T>;
 
     fn sum(&self) -> Self::Output {
@@ -201,7 +139,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> Sum for Tensor<T> {
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> BroastcastTo for Tensor<T> {
+impl<T: ForwardType> BroastcastTo for Tensor<T> {
     type Output = Tensor<T>;
     type Shape = Vec<usize>;
 
@@ -210,7 +148,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> BroastcastTo for Tenso
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Reshape for Tensor<T> {
+impl<T: ForwardType> Reshape for Tensor<T> {
     type Output = Tensor<T>;
     type Shape = Vec<usize>;
 
@@ -219,12 +157,20 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> Reshape for Tensor<T> 
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Transpose for Tensor<T> {
+impl<T: ForwardType> Transpose for Tensor<T> {
     type Output = Tensor<T>;
     type Shape = Vec<usize>;
 
     fn transpose(&self, shape: Self::Shape) -> Self::Output {
         TensorTranspose::new(shape).call(vec![self.to_owned()])
+    }
+}
+
+impl<T: ForwardType> Sigmoid for Tensor<T> {
+    type Output = Tensor<T>;
+
+    fn sigmoid(&self) -> Self::Output {
+        TensorSigmoid::new().call(vec![self.to_owned()])
     }
 }
 
@@ -234,11 +180,9 @@ impl_tensor_op!(Div, div, TensorScalarDiv);
 
 #[cfg(test)]
 mod tests {
-
-    use ndarray::linalg::Dot;
-
-    use crate::autograd::ops_impl::{BroastcastTo, MatMul, Pow, Reshape, Sum, Transpose};
+    use crate::autograd::ops_impl::{BroastcastTo, MatMul, Pow, Sum, Transpose};
     use crate::autograd::tensor::{Tensor, TensorData, TensorDataInner, TensorDtype};
+    use ndarray::linalg::Dot;
 
     fn build_tensors() -> (Tensor<f64>, Tensor<f64>) {
         let data = TensorData::new(
@@ -341,8 +285,8 @@ mod tests {
             ),
             None,
         );
-        let sum = tensor.reshape(vec![2, 2]);
-        assert_eq!(sum.shape(), &[2, 2]);
+        tensor.reshape(&[2, 2]);
+        assert_eq!(tensor.shape(), &[2, 2]);
     }
 
     #[test]

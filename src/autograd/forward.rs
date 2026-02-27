@@ -1,8 +1,6 @@
 #![allow(dead_code)]
 
-use std::fmt::Debug;
-use std::ops::{Add, Div, Mul, Neg, Sub};
-
+use super::ForwardType;
 use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul};
 use super::tensor::{Tensor, TensorBuilder, TensorData, TensorDataInner};
 use crate::autograd::ops::{
@@ -10,12 +8,11 @@ use crate::autograd::ops::{
     TensorNeg, TensorOp, TensorPow, TensorRelu, TensorReshape, TensorSigmoid, TensorSqrt,
     TensorSub, TensorSum, TensorTanh, TensorTranspose, dot_dyn,
 };
-use ndarray::{ArrayBase, ArrayD, IxDyn, LinalgScalar, OwnedRepr};
-use num_traits::{Float, Pow, Zero};
+use ndarray::{ArrayBase, ArrayD, IxDyn, OwnedRepr};
 
 pub(crate) trait Forward<T>
 where
-    T: Debug + Clone + Add<Output = T> + Zero + num_traits::One + 'static,
+    T: ForwardType,
 {
     fn call(&self, inputs: Vec<Tensor<T>>) -> Tensor<T> {
         let requires_grad = inputs.iter().any(|t| t.requires_grad());
@@ -44,9 +41,7 @@ where
     fn operation(&self) -> TensorOp<T>;
 }
 
-impl<T: Clone + Debug + Add<Output = T> + Zero + num_traits::One + 'static> Forward<T>
-    for TensorAdd<T>
-{
+impl<T: ForwardType> Forward<T> for TensorAdd<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -61,9 +56,7 @@ impl<T: Clone + Debug + Add<Output = T> + Zero + num_traits::One + 'static> Forw
     }
 }
 
-impl<T: Clone + Debug + Sub<Output = T> + Zero + num_traits::One + 'static> Forward<T>
-    for TensorSub<T>
-{
+impl<T: ForwardType> Forward<T> for TensorSub<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -78,9 +71,7 @@ impl<T: Clone + Debug + Sub<Output = T> + Zero + num_traits::One + 'static> Forw
     }
 }
 
-impl<T: Clone + Debug + Div<Output = T> + Zero + num_traits::One + 'static> Forward<T>
-    for TensorDiv<T>
-{
+impl<T: ForwardType> Forward<T> for TensorDiv<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -95,9 +86,7 @@ impl<T: Clone + Debug + Div<Output = T> + Zero + num_traits::One + 'static> Forw
     }
 }
 
-impl<T: Clone + Debug + Mul<Output = T> + Zero + num_traits::One + 'static> Forward<T>
-    for TensorMul<T>
-{
+impl<T: ForwardType> Forward<T> for TensorMul<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -112,9 +101,7 @@ impl<T: Clone + Debug + Mul<Output = T> + Zero + num_traits::One + 'static> Forw
     }
 }
 
-impl<T: Clone + Debug + Neg<Output = T> + Zero + num_traits::One + 'static> Forward<T>
-    for TensorNeg<T>
-{
+impl<T: ForwardType> Forward<T> for TensorNeg<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -128,9 +115,7 @@ impl<T: Clone + Debug + Neg<Output = T> + Zero + num_traits::One + 'static> Forw
     }
 }
 
-impl<T: Clone + Debug + LinalgScalar + Zero + num_traits::One + 'static> Forward<T>
-    for TensorMatMul<T>
-{
+impl<T: ForwardType> Forward<T> for TensorMatMul<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -144,7 +129,7 @@ impl<T: Clone + Debug + LinalgScalar + Zero + num_traits::One + 'static> Forward
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorSum<T> {
+impl<T: ForwardType> Forward<T> for TensorSum<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -159,7 +144,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorS
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorBroadcastTo<T> {
+impl<T: ForwardType> Forward<T> for TensorBroadcastTo<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -176,9 +161,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorB
     }
 }
 
-impl<T: Clone + Debug + Pow<i32, Output = T> + Zero + num_traits::One + 'static> Forward<T>
-    for TensorPow<T>
-{
+impl<T: ForwardType> Forward<T> for TensorPow<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -193,7 +176,7 @@ impl<T: Clone + Debug + Pow<i32, Output = T> + Zero + num_traits::One + 'static>
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorTranspose<T> {
+impl<T: ForwardType> Forward<T> for TensorTranspose<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -208,7 +191,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorT
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorReshape<T> {
+impl<T: ForwardType> Forward<T> for TensorReshape<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -224,7 +207,7 @@ impl<T: Clone + Debug + Zero + num_traits::One + 'static> Forward<T> for TensorR
     }
 }
 
-impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorLog<T> {
+impl<T: ForwardType> Forward<T> for TensorLog<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -238,7 +221,7 @@ impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorLog<T> {
     }
 }
 
-impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorExp<T> {
+impl<T: ForwardType> Forward<T> for TensorExp<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -253,7 +236,7 @@ impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorExp<T> {
     }
 }
 
-impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorRelu<T> {
+impl<T: ForwardType> Forward<T> for TensorRelu<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -268,9 +251,7 @@ impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorRelu<T> {
     }
 }
 
-impl<T: Clone + Debug + Neg + Add<T, Output = T> + Pow<T, Output = T> + Float + 'static> Forward<T>
-    for TensorSigmoid<T>
-{
+impl<T: ForwardType> Forward<T> for TensorSigmoid<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -285,7 +266,7 @@ impl<T: Clone + Debug + Neg + Add<T, Output = T> + Pow<T, Output = T> + Float + 
     }
 }
 
-impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorTanh<T> {
+impl<T: ForwardType> Forward<T> for TensorTanh<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -300,7 +281,7 @@ impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorTanh<T> {
     }
 }
 
-impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorSqrt<T> {
+impl<T: ForwardType> Forward<T> for TensorSqrt<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -315,9 +296,7 @@ impl<T: Clone + Debug + Float + 'static> Forward<T> for TensorSqrt<T> {
     }
 }
 
-impl<T: Clone + Debug + Add<Output = T> + Zero + num_traits::One + ndarray::ScalarOperand + 'static>
-    Forward<T> for TensorScalarAdd<T>
-{
+impl<T: ForwardType> Forward<T> for TensorScalarAdd<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -331,9 +310,7 @@ impl<T: Clone + Debug + Add<Output = T> + Zero + num_traits::One + ndarray::Scal
     }
 }
 
-impl<T: Clone + Debug + Mul<Output = T> + Zero + num_traits::One + ndarray::ScalarOperand + 'static>
-    Forward<T> for TensorScalarMul<T>
-{
+impl<T: ForwardType> Forward<T> for TensorScalarMul<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
@@ -347,9 +324,7 @@ impl<T: Clone + Debug + Mul<Output = T> + Zero + num_traits::One + ndarray::Scal
     }
 }
 
-impl<T: Clone + Debug + Div<Output = T> + Zero + num_traits::One + ndarray::ScalarOperand + 'static>
-    Forward<T> for TensorScalarDiv<T>
-{
+impl<T: ForwardType> Forward<T> for TensorScalarDiv<T> {
     fn forward(
         &self,
         inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,

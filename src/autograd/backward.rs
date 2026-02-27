@@ -1,13 +1,12 @@
 #![allow(dead_code)]
 
-use super::ops::{TensorMul, TensorPow, TensorSub};
-use super::{ops::TensorAdd, tensor::Tensor};
+use super::ops::{TensorDiv, TensorMul, TensorPow, TensorSub};
+use super::tensor::{Tensor, TensorData, TensorDataInner};
+use super::{ForwardType, ops::TensorAdd};
 use crate::autograd::ops_impl::Pow;
-use num_traits::Zero;
-use std::fmt::Debug;
-use std::ops::{Mul, Neg};
+use ndarray::{ArrayD, IxDyn};
 
-pub(crate) trait Backward {
+pub trait Backward {
     type OutGrad;
     type Node;
     type Output;
@@ -15,7 +14,7 @@ pub(crate) trait Backward {
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output;
 }
 
-impl<T: Clone + Debug> Backward for TensorAdd<T> {
+impl<T: ForwardType> Backward for TensorAdd<T> {
     type OutGrad = Tensor<T>;
 
     type Node = Tensor<T>;
@@ -29,9 +28,7 @@ impl<T: Clone + Debug> Backward for TensorAdd<T> {
     }
 }
 
-impl<T: Clone + Debug + Zero + num_traits::One + Neg<Output = T> + 'static> Backward
-    for TensorSub<T>
-{
+impl<T: ForwardType> Backward for TensorSub<T> {
     type OutGrad = Tensor<T>;
 
     type Node = Tensor<T>;
@@ -45,9 +42,19 @@ impl<T: Clone + Debug + Zero + num_traits::One + Neg<Output = T> + 'static> Back
     }
 }
 
-impl<T: Clone + Debug + Zero + Mul<Output = T> + num_traits::One + 'static> Backward
-    for TensorMul<T>
-{
+impl<T: ForwardType> Backward for TensorDiv<T> {
+    type OutGrad = Tensor<T>;
+
+    type Node = Tensor<T>;
+
+    type Output = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, _out_grade: Self::OutGrad, _node: Self::Node) -> Self::Output {
+        todo!()
+    }
+}
+
+impl<T: ForwardType> Backward for TensorMul<T> {
     type OutGrad = Tensor<T>;
 
     type Node = Tensor<T>;
@@ -67,18 +74,7 @@ impl<T: Clone + Debug + Zero + Mul<Output = T> + num_traits::One + 'static> Back
     }
 }
 
-impl<
-    T: Clone
-        + Debug
-        + Zero
-        + num_traits::One
-        + Mul<Output = T>
-        + num_traits::Pow<i32, Output = T>
-        + 'static,
-> Backward for TensorPow<T>
-where
-    i32: Mul<Tensor<T>, Output = Tensor<T>>,
-{
+impl<T: ForwardType> Backward for TensorPow<T> {
     type OutGrad = Tensor<T>;
 
     type Node = Tensor<T>;
@@ -86,22 +82,27 @@ where
     type Output = (Tensor<T>, Tensor<T>);
 
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
-        assert_eq!(node.inputs().len(), 2);
-        let a = node.inputs();
-        let a = a.first().unwrap();
-        let b = node.inputs();
-        let b = b.get(1).unwrap();
+        // Pow is a unary operation: f(x) = x^n where n = self.power
+        // d/dx (x^n) = n * x^(n-1)
+        let inputs = node.inputs();
+        assert_eq!(inputs.len(), 1);
+        let x = inputs.first().unwrap();
 
-        // derivative of (a * b) wrt a is out_grad * (x * b^x) * a^x-1
-        // derivative of (a * b) wrt b is out_grad * (x * a^x) * b^x-1
-        let a = out_grade.clone()
-            * (self.power * b.clone().pow(self.power))
-            * a.clone().pow(self.power - 1);
-        let b = out_grade.clone()
-            * (self.power * a.clone().pow(self.power))
-            * b.clone().pow(self.power - 1);
+        let n: T = T::from(self.power).unwrap();
+        let n_arr = ArrayD::from_elem(IxDyn(&x.shape()), n);
+        let n_tensor = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(n_arr)),
+            None,
+        );
 
-        (a, b)
+        let grad_x = out_grade * n_tensor * x.clone().pow(self.power - 1);
+
+        let zeros_arr = ArrayD::zeros(IxDyn(&x.shape()));
+        let zeros_tensor = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(zeros_arr)),
+            None,
+        );
+        (grad_x, zeros_tensor)
     }
 }
 

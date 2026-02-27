@@ -2,10 +2,10 @@
 macro_rules! impl_tensor_op {
     ($trait:ident, $method:ident, $op_struct:ident) => {
         impl_tensor_op!(@scalar_lhs $trait, $method, $op_struct,
-            [f32, f64, i8, i16, i32, i64, u8, u16, u32, u64]
+            [f32, f64]
         );
         impl_tensor_op!(@scalar_rhs $trait, $method, $op_struct,
-            [f32, f64, i8, i16, i32, i64, u8, u16, u32, u64]
+            [f32, f64]
         );
     };
     (@scalar_lhs $trait:ident, $method:ident, $op_struct:ident, [$($scalar:ty),*]) => {

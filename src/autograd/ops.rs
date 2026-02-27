@@ -1,11 +1,10 @@
-use ndarray::{ArrayBase, ArrayD, Ix1, Ix2, IxDyn, LinalgScalar, OwnedRepr};
-use num_traits::Zero;
-use std::fmt::Debug;
+use ndarray::{ArrayBase, ArrayD, Ix1, Ix2, IxDyn, OwnedRepr};
 use std::marker::PhantomData;
-use std::ops::{Add, Div, Mul, Neg, Sub};
+
+use super::ForwardType;
 
 #[derive(Debug, Clone)]
-pub enum TensorOp<T: Debug + Clone> {
+pub enum TensorOp<T: ForwardType> {
     Add(TensorAdd<T>),
     Sub(TensorSub<T>),
     Div(TensorDiv<T>),
@@ -29,11 +28,11 @@ pub enum TensorOp<T: Debug + Clone> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorAdd<T: Debug + Clone> {
+pub struct TensorAdd<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Add<Output = T> + Zero + 'static> TensorAdd<T> {
+impl<T: ForwardType> TensorAdd<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -42,11 +41,11 @@ impl<T: Clone + Debug + Add<Output = T> + Zero + 'static> TensorAdd<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorSub<T: Debug + Clone> {
+pub struct TensorSub<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Sub<Output = T> + Zero + 'static> TensorSub<T> {
+impl<T: ForwardType> TensorSub<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -55,11 +54,11 @@ impl<T: Clone + Debug + Sub<Output = T> + Zero + 'static> TensorSub<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorDiv<T: Debug + Clone> {
+pub struct TensorDiv<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Div<Output = T> + Zero + 'static> TensorDiv<T> {
+impl<T: ForwardType> TensorDiv<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -68,11 +67,11 @@ impl<T: Clone + Debug + Div<Output = T> + Zero + 'static> TensorDiv<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorMul<T: Debug + Clone> {
+pub struct TensorMul<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Mul<Output = T> + Zero + 'static> TensorMul<T> {
+impl<T: ForwardType> TensorMul<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -81,11 +80,11 @@ impl<T: Clone + Debug + Mul<Output = T> + Zero + 'static> TensorMul<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorNeg<T: Debug + Clone> {
+pub struct TensorNeg<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Neg<Output = T> + Zero + 'static> TensorNeg<T> {
+impl<T: ForwardType> TensorNeg<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -94,11 +93,11 @@ impl<T: Clone + Debug + Neg<Output = T> + Zero + 'static> TensorNeg<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorMatMul<T: Debug + Clone> {
+pub struct TensorMatMul<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + LinalgScalar + Zero + 'static> TensorMatMul<T> {
+impl<T: ForwardType> TensorMatMul<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -107,13 +106,10 @@ impl<T: Clone + Debug + LinalgScalar + Zero + 'static> TensorMatMul<T> {
 }
 
 // TODO: Support higher dimension vectors > (2, 2)
-pub(crate) fn dot_dyn<T>(
+pub(crate) fn dot_dyn<T: ForwardType>(
     a: &ArrayBase<OwnedRepr<T>, IxDyn, T>,
     b: &ArrayBase<OwnedRepr<T>, IxDyn, T>,
-) -> ArrayBase<OwnedRepr<T>, IxDyn, T>
-where
-    T: LinalgScalar,
-{
+) -> ArrayBase<OwnedRepr<T>, IxDyn, T> {
     let a_ndim = a.ndim();
     let b_ndim = b.ndim();
 
@@ -144,11 +140,11 @@ where
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorSum<T: Debug + Clone> {
+pub struct TensorSum<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorSum<T> {
+impl<T: ForwardType> TensorSum<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -157,12 +153,12 @@ impl<T: Clone + Debug + Zero + 'static> TensorSum<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorBroadcastTo<T: Debug + Clone> {
+pub struct TensorBroadcastTo<T: ForwardType> {
     pub(crate) marker: PhantomData<T>,
     pub(crate) shape: Vec<usize>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorBroadcastTo<T> {
+impl<T: ForwardType> TensorBroadcastTo<T> {
     pub(crate) fn new(shape: Vec<usize>) -> Self {
         Self {
             marker: PhantomData,
@@ -172,12 +168,12 @@ impl<T: Clone + Debug + Zero + 'static> TensorBroadcastTo<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorPow<T: Debug + Clone> {
+pub struct TensorPow<T: ForwardType> {
     marker: PhantomData<T>,
     pub(crate) power: i32,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorPow<T> {
+impl<T: ForwardType> TensorPow<T> {
     pub(crate) fn new(power: i32) -> Self {
         Self {
             marker: PhantomData,
@@ -187,12 +183,12 @@ impl<T: Clone + Debug + Zero + 'static> TensorPow<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorTranspose<T: Debug + Clone> {
+pub struct TensorTranspose<T: ForwardType> {
     marker: PhantomData<T>,
     pub(crate) shape: Vec<usize>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorTranspose<T> {
+impl<T: ForwardType> TensorTranspose<T> {
     pub(crate) fn new(shape: Vec<usize>) -> Self {
         Self {
             marker: PhantomData,
@@ -202,12 +198,12 @@ impl<T: Clone + Debug + Zero + 'static> TensorTranspose<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorReshape<T: Debug + Clone> {
+pub struct TensorReshape<T: ForwardType> {
     marker: PhantomData<T>,
     pub(crate) shape: Vec<usize>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorReshape<T> {
+impl<T: ForwardType> TensorReshape<T> {
     pub(crate) fn new(shape: Vec<usize>) -> Self {
         Self {
             marker: PhantomData,
@@ -217,12 +213,12 @@ impl<T: Clone + Debug + Zero + 'static> TensorReshape<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorLog<T: Debug + Clone> {
+pub struct TensorLog<T: ForwardType> {
     marker: PhantomData<T>,
     pub(crate) rhs: T,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorLog<T> {
+impl<T: ForwardType> TensorLog<T> {
     pub(crate) fn new(rhs: T) -> Self {
         Self {
             marker: PhantomData,
@@ -233,11 +229,11 @@ impl<T: Clone + Debug + Zero + 'static> TensorLog<T> {
 
 // TensorExp is e^x
 #[derive(Debug, Clone)]
-pub struct TensorExp<T: Debug + Clone> {
+pub struct TensorExp<T: ForwardType> {
     marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorExp<T> {
+impl<T: ForwardType> TensorExp<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -246,11 +242,11 @@ impl<T: Clone + Debug + Zero + 'static> TensorExp<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorRelu<T: Debug + Clone> {
+pub struct TensorRelu<T: ForwardType> {
     marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorRelu<T> {
+impl<T: ForwardType> TensorRelu<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -259,11 +255,11 @@ impl<T: Clone + Debug + Zero + 'static> TensorRelu<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorSigmoid<T: Debug + Clone> {
+pub struct TensorSigmoid<T: ForwardType> {
     marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorSigmoid<T> {
+impl<T: ForwardType> TensorSigmoid<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -272,11 +268,11 @@ impl<T: Clone + Debug + Zero + 'static> TensorSigmoid<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorTanh<T: Debug + Clone> {
+pub struct TensorTanh<T: ForwardType> {
     marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorTanh<T> {
+impl<T: ForwardType> TensorTanh<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -285,11 +281,11 @@ impl<T: Clone + Debug + Zero + 'static> TensorTanh<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorSqrt<T: Debug + Clone> {
+pub struct TensorSqrt<T: ForwardType> {
     marker: PhantomData<T>,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorSqrt<T> {
+impl<T: ForwardType> TensorSqrt<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,
@@ -298,12 +294,12 @@ impl<T: Clone + Debug + Zero + 'static> TensorSqrt<T> {
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorScalarMul<T> {
+pub struct TensorScalarMul<T: ForwardType> {
     marker: PhantomData<T>,
     scalar: T,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorScalarMul<T> {
+impl<T: ForwardType> TensorScalarMul<T> {
     pub(crate) fn new(scalar: T) -> Self {
         Self {
             marker: PhantomData,
@@ -312,17 +308,17 @@ impl<T: Clone + Debug + Zero + 'static> TensorScalarMul<T> {
     }
 
     pub(crate) fn scalar(&self) -> T {
-        self.scalar.clone()
+        self.scalar
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorScalarAdd<T> {
+pub struct TensorScalarAdd<T: ForwardType> {
     marker: PhantomData<T>,
     scalar: T,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorScalarAdd<T> {
+impl<T: ForwardType> TensorScalarAdd<T> {
     pub(crate) fn new(scalar: T) -> Self {
         Self {
             marker: PhantomData,
@@ -331,17 +327,17 @@ impl<T: Clone + Debug + Zero + 'static> TensorScalarAdd<T> {
     }
 
     pub(crate) fn scalar(&self) -> T {
-        self.scalar.clone()
+        self.scalar
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct TensorScalarDiv<T> {
+pub struct TensorScalarDiv<T: ForwardType> {
     marker: PhantomData<T>,
     scalar: T,
 }
 
-impl<T: Clone + Debug + Zero + 'static> TensorScalarDiv<T> {
+impl<T: ForwardType> TensorScalarDiv<T> {
     pub(crate) fn new(scalar: T) -> Self {
         Self {
             marker: PhantomData,
@@ -350,6 +346,6 @@ impl<T: Clone + Debug + Zero + 'static> TensorScalarDiv<T> {
     }
 
     pub(crate) fn scalar(&self) -> T {
-        self.scalar.clone()
+        self.scalar
     }
 }
