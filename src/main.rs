@@ -11,7 +11,7 @@ fn main() {
     println!("{}", t1);
     let weights = TensorData::new(
         TensorDtype::Float64,
-        TensorDataInner::List(vec![1., -1., 1., -1., 1., 1., -1., -1.]),
+        TensorDataInner::List(vec![0.8, 0.8, -1.2, -1.5, 0.8, 0.8, -1.2, -1.5]),
     );
     let weight_tensor = Tensor::new(weights, Some(&[2, 4]));
     println!("{}", weight_tensor);
@@ -24,6 +24,9 @@ fn main() {
 
     let weighted_sum = weighted_sum.sigmoid();
     println!("{}\n", weighted_sum);
+
+    let loss = weighted_sum.loss();
+    println!("loss: {loss}");
 
     weighted_sum.graph();
 }

@@ -180,6 +180,10 @@ impl<T: ForwardType> Tensor<T> {
         }
     }
 
+    pub fn loss(&self) -> f64 {
+        self.ndarray().pow2().sum().to_f64().unwrap()
+    }
+
     pub fn detach(&self) -> Tensor<T> {
         Tensor {
             inner: self.inner.clone(),
