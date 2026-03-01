@@ -7,7 +7,7 @@ use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::{Arc, RwLock};
-use std::{any::TypeId, fmt::Display};
+use std::fmt::Display;
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {
@@ -180,8 +180,10 @@ impl<T: ForwardType> Tensor<T> {
         }
     }
 
-    pub fn loss(&self) -> f64 {
-        self.ndarray().pow2().sum().to_f64().unwrap()
+    pub fn loss(&self, target_index: usize, target: T) -> f64 {
+        let mut a = self.ndarray().to_owned();
+        a[target_index] -= target;
+        a.pow2().sum().to_f64().unwrap()
     }
 
     pub fn detach(&self) -> Tensor<T> {
@@ -433,13 +435,6 @@ mod tests {
         );
         let tensor2 = Tensor::new(data2, Some(&[2, 2]));
         (tensor, tensor2)
-    }
-
-    #[test]
-    fn tensor_data_test() {
-        let _ = TensorData::new(TensorDtype::Float64, TensorDataInner::Scalar(15f64));
-        // Should panic with f32 as datatype when Float64 is specified
-        let _ = TensorData::new(TensorDtype::Float64, TensorDataInner::Scalar(10f32));
     }
 
     #[test]

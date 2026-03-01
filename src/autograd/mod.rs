@@ -1,23 +1,24 @@
 pub mod backward;
 pub mod forward;
+pub mod nn;
 pub mod ops;
 pub mod ops_impl;
 pub(crate) mod scalar_ops_macro;
 pub mod tensor;
 
 use std::fmt::Debug;
-use std::ops::{Mul, Neg};
+use std::ops::{Mul, Neg, SubAssign};
 
 use ndarray::{LinalgScalar, ScalarOperand};
 use num_traits::{Float, Pow};
 
 pub trait ForwardType:
-    Debug + Float + LinalgScalar + ScalarOperand + Pow<i32, Output = Self>
+    Debug + Float + LinalgScalar + ScalarOperand + Pow<i32, Output = Self> + SubAssign
 {
 }
 
 impl<T> ForwardType for T where
-    T: Debug + Float + LinalgScalar + ScalarOperand + Pow<i32, Output = T>
+    T: Debug + Float + LinalgScalar + ScalarOperand + Pow<i32, Output = T> + SubAssign
 {
 }
 
