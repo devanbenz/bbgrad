@@ -1,4 +1,4 @@
-use bbgrad::autograd::nn::{NeuralNet, NeuralNetBuilder};
+use bbgrad::autograd::nn::{Perceptron, PerceptronBuilder};
 use bbgrad::autograd::ops_impl::{MatMul, Sigmoid};
 use bbgrad::autograd::tensor::{Tensor, TensorData, TensorDataInner, TensorDtype};
 
@@ -29,7 +29,7 @@ fn main() {
     let loss = weighted_sum.loss(0, 1.0);
     println!("loss: {loss}");
 
-    let nn: NeuralNet<f64> = NeuralNetBuilder::new()
+    let nn: Perceptron<f64> = PerceptronBuilder::new()
         .with_layer(vec![1, 16], vec![1, 16])
         .with_layer(vec![1, 16], vec![1, 16])
         .build();
