@@ -6,8 +6,8 @@ use crate::autograd::backward::Backward;
 use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::{Arc, RwLock};
 use std::fmt::Display;
+use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone)]
 pub enum TensorDevice {
@@ -180,8 +180,12 @@ impl<T: ForwardType> Tensor<T> {
         }
     }
 
-    pub fn loss(&self, target_index: usize, target: T) -> f64 {
-        let mut a = self.ndarray().to_owned();
+    pub fn loss(&self, target_index: usize, output_size: usize, target: T) -> f64 {
+        let mut a = self
+            .ndarray()
+            .to_owned()
+            .into_shape_with_order(IxDyn(&[output_size]))
+            .unwrap();
         a[target_index] -= target;
         a.pow2().sum().to_f64().unwrap()
     }
