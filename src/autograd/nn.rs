@@ -9,28 +9,16 @@ use ndarray_rand::rand_distr::uniform::SampleUniform;
 pub struct Perceptron<T: ForwardType + SampleUniform> {
     random_dist: Uniform<T>,
     layers: Vec<usize>,
+    weights: Vec<Tensor<T>>,
+    biases: Vec<Tensor<T>>,
 }
 
 impl<T: ForwardType + SampleUniform> Perceptron<T> {
     pub fn forward(&self, input: Tensor<T>) -> Tensor<T> {
         let mut activation = input;
 
-        for i in 0..self.layers.len() - 1 {
-            let rows = self.layers[i + 1];
-            let cols = self.layers[i];
-
-            let weights = Tensor::new(
-                TensorData::new(
-                    TensorDtype::Float64,
-                    TensorDataInner::NdArray(ArrayD::random(
-                        IxDyn(&[rows, cols]),
-                        &self.random_dist,
-                    )),
-                ),
-                None,
-            );
-
-            activation = weights.matmul(&activation).sigmoid();
+        for weight_tensor in self.weights.iter() {
+            activation = weight_tensor.matmul(&activation).sigmoid();
         }
 
         activation
@@ -52,16 +40,44 @@ impl<T: ForwardType + SampleUniform> PerceptronBuilder<T> {
             nn: Perceptron {
                 layers: vec![],
                 random_dist: rd,
+                weights: vec![],
+                biases: vec![],
             },
         }
     }
 
     pub fn with_layer(mut self, size: usize) -> PerceptronBuilder<T> {
-        self.nn.layers.push(size);
+        let weights = self.nn.layers.push(size);
         self
     }
 
-    pub fn build(self) -> Perceptron<T> {
+    pub fn build(mut self) -> Perceptron<T> {
+        for i in 0..self.nn.layers.len() - 1 {
+            let rows = self.nn.layers[i + 1];
+            let cols = self.nn.layers[i];
+
+            let weights = Tensor::new(
+                TensorData::new(
+                    TensorDtype::Float64,
+                    TensorDataInner::NdArray(ArrayD::random(
+                        IxDyn(&[rows, cols]),
+                        &self.nn.random_dist,
+                    )),
+                ),
+                None,
+            );
+
+            let biases: Tensor<T> = Tensor::new(
+                TensorData::new(
+                    TensorDtype::Float64,
+                    TensorDataInner::NdArray(ArrayD::zeros(IxDyn(&[1, cols]))),
+                ),
+                None,
+            );
+            self.nn.weights.push(weights);
+            self.nn.biases.push(biases);
+        }
+
         self.nn
     }
 }
