@@ -1,12 +1,12 @@
 use bbgrad::autograd::nn::PerceptronBuilder;
-use bbgrad::autograd::tensor::{Tensor, TensorData, TensorDataInner, TensorDtype};
+use bbgrad::autograd::tensor_builder::FloatTensorBuilder;
 use ndarray::{ArrayD, IxDyn};
-use ndarray_rand::RandomExt;
 
 fn main() {
+    let input_file = std::env::args().nth(1).expect("Usage: bbgrad <input csv>");
     let mut data = csv::ReaderBuilder::new()
         .has_headers(false)
-        .from_path("/Users/devan/Documents/OSS/mnist/mnist_test.csv")
+        .from_path(input_file)
         .unwrap();
 
     let perceptron = PerceptronBuilder::new((-1.0, 1.0))
@@ -24,18 +24,12 @@ fn main() {
             .collect::<Vec<f64>>();
 
         let label = r[0] as usize;
-        let input_tensor = Tensor::new(
-            TensorData::new(
-                TensorDtype::Float64,
-                TensorDataInner::NdArray(
-                    ArrayD::from_shape_vec(IxDyn(&[784, 1]), r[1..].to_owned())
-                        .expect("Cannot create array from input"),
-                ),
-            ),
-            None,
-        );
-        let i = input_tensor / 255.0f64;
-        let t = perceptron.forward(i);
-        t.graph();
+        let array = ArrayD::from_shape_vec(IxDyn(&[784, 1]), r[1..].to_owned()).unwrap() / 255.0f64;
+        let input_tensor = FloatTensorBuilder::new()
+            .with_ndarray(array)
+            .with_grad(false)
+            .build();
+        let t = perceptron.forward(input_tensor);
+        let _loss = t.loss(label, 10, 1f64);
     }
 }

@@ -5,6 +5,7 @@ pub mod ops;
 pub mod ops_impl;
 pub(crate) mod scalar_ops_macro;
 pub mod tensor;
+pub mod tensor_builder;
 
 use std::fmt::Debug;
 use std::ops::{Mul, Neg, SubAssign};

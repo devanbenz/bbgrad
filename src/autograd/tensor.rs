@@ -6,7 +6,7 @@ use crate::autograd::backward::Backward;
 use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Display;
+use std::fmt::{Display, format};
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone)]
@@ -141,6 +141,10 @@ impl<T: ForwardType> Tensor<T> {
         }
     }
 
+    pub fn set_requires_grad(&self, requires_grad: bool) {
+        self.inner.write().unwrap().requires_grad = requires_grad;
+    }
+
     pub fn ndim(&self) -> usize {
         match self.inner.read() {
             Ok(val) => val.data.ndim(),
@@ -239,14 +243,15 @@ impl<T: ForwardType> Tensor<T> {
                 "├── "
             };
 
-            let (shape_str, op_str) = {
+            let (shape_str, op_str, requires_grad_str) = {
                 let inner = tensor.inner.read().unwrap();
                 let shape_str = format!("{:?}", inner.data.shape());
+                let requires_grad_str = format!(" requires_grad={:?}", inner.requires_grad);
                 let op_str = match &inner.op {
                     Some(op) => format!(" ({})", op_name(op)),
                     None => String::new(),
                 };
-                (shape_str, op_str)
+                (shape_str, op_str, requires_grad_str)
             };
 
             let grad_str = match &tensor.grad.read() {
@@ -263,16 +268,16 @@ impl<T: ForwardType> Tensor<T> {
             let id = tensor.id();
             if visited.contains(&id) {
                 println!(
-                    "{}{}Tensor {}{}{} *",
-                    prefix, connector, shape_str, op_str, grad_str
+                    "{}{}Tensor {}{}{}{} *",
+                    prefix, connector, shape_str, op_str, requires_grad_str, grad_str
                 );
                 return;
             }
             visited.insert(id);
 
             println!(
-                "{}{}Tensor {}{}{}",
-                prefix, connector, shape_str, op_str, grad_str
+                "{}{}Tensor {}{}{}{}",
+                prefix, connector, shape_str, op_str, requires_grad_str, grad_str
             );
 
             let child_prefix = if is_root {
