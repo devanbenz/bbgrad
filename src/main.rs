@@ -30,6 +30,8 @@ fn main() {
             .with_grad(false)
             .build();
         let t = perceptron.forward(input_tensor);
-        let _loss = t.loss(label, 10, 1f64);
+        t.graph();
+        let loss = t.loss(label, 10, 1f64);
+        println!("loss: {}", loss);
     }
 }

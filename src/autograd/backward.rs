@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 
-use super::ops::{TensorDiv, TensorMul, TensorPow, TensorSub};
+use super::ops::{TensorDiv, TensorMatMul, TensorMul, TensorPow, TensorSigmoid, TensorSub};
 use super::tensor::{Tensor, TensorData, TensorDataInner};
 use super::{ForwardType, ops::TensorAdd};
 use crate::autograd::ops_impl::Pow;
@@ -103,6 +103,32 @@ impl<T: ForwardType> Backward for TensorPow<T> {
             None,
         );
         (grad_x, zeros_tensor)
+    }
+}
+
+impl<T: ForwardType> Backward for TensorMatMul<T> {
+    type OutGrad = Tensor<T>;
+    type Node = Tensor<T>;
+    type Output = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
+        let inputs = node.inputs();
+        assert_eq!(inputs.len(), 2);
+        let x = inputs.first().unwrap();
+        let y = &inputs[1];
+        todo!()
+    }
+}
+
+impl<T: ForwardType> Backward for TensorSigmoid<T> {
+    type OutGrad = Tensor<T>;
+    type Node = Tensor<T>;
+    type Output = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
+        let inputs = node.inputs();
+        let x = inputs.first().unwrap();
+        todo!()
     }
 }
 

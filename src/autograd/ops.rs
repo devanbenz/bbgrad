@@ -22,6 +22,7 @@ pub enum TensorOp<T: ForwardType> {
     Sigmoid(TensorSigmoid<T>),
     Tanh(TensorTanh<T>),
     Sqrt(TensorSqrt<T>),
+    Softmax(TensorSoftmax<T>),
     ScalarMul(TensorScalarMul<T>),
     ScalarAdd(TensorScalarAdd<T>),
     ScalarDiv(TensorScalarDiv<T>),
@@ -286,6 +287,19 @@ pub struct TensorSqrt<T: ForwardType> {
 }
 
 impl<T: ForwardType> TensorSqrt<T> {
+    pub(crate) fn new() -> Self {
+        Self {
+            marker: PhantomData,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TensorSoftmax<T: ForwardType> {
+    marker: PhantomData<T>,
+}
+
+impl<T: ForwardType> TensorSoftmax<T> {
     pub(crate) fn new() -> Self {
         Self {
             marker: PhantomData,

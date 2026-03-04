@@ -11,7 +11,7 @@ use crate::autograd::ops::{
 use crate::impl_tensor_op;
 
 use super::ForwardType;
-use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul, TensorSigmoid};
+use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul, TensorSigmoid, TensorSoftmax};
 use super::tensor::Tensor;
 
 trait Sum {
@@ -58,6 +58,12 @@ pub trait Sigmoid {
     type Output;
 
     fn sigmoid(&self) -> Self::Output;
+}
+
+pub trait Softmax {
+    type Output;
+
+    fn softmax(&self) -> Self::Output;
 }
 
 impl<T: ForwardType> ops::Add for Tensor<T> {
@@ -171,6 +177,14 @@ impl<T: ForwardType> Sigmoid for Tensor<T> {
 
     fn sigmoid(&self) -> Self::Output {
         TensorSigmoid::new().call(vec![self.to_owned()])
+    }
+}
+
+impl<T: ForwardType> Softmax for Tensor<T> {
+    type Output = Tensor<T>;
+
+    fn softmax(&self) -> Self::Output {
+        TensorSoftmax::new().call(vec![self.to_owned()])
     }
 }
 

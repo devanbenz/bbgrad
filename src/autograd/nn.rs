@@ -1,4 +1,4 @@
-use crate::autograd::ops_impl::{MatMul, Sigmoid};
+use crate::autograd::ops_impl::{MatMul, Sigmoid, Softmax};
 use crate::autograd::tensor::Tensor;
 use ndarray::{ArrayD, IxDyn};
 use ndarray_rand::RandomExt;
@@ -17,10 +17,12 @@ impl Perceptron {
     pub fn forward(&self, input: Tensor<f64>) -> Tensor<f64> {
         let mut activation = input;
 
-        for weight_tensor in self.weights.iter() {
-            activation = weight_tensor.matmul(&activation).sigmoid();
-            println!("\n");
-            activation.graph();
+        for (idx, weight_tensor) in self.weights.iter().enumerate() {
+            if idx == self.weights.len() - 1 {
+                activation = weight_tensor.matmul(&activation).softmax();
+            } else {
+                activation = weight_tensor.matmul(&activation).sigmoid();
+            }
         }
 
         activation

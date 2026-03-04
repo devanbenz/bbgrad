@@ -6,7 +6,7 @@ use crate::autograd::backward::Backward;
 use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::{Display, format};
+use std::fmt::Display;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug, Clone)]
@@ -108,6 +108,7 @@ impl<T: ForwardType> Tensor<T> {
                     TensorOp::ScalarMul(_tensor_scalar_mul) => todo!(),
                     TensorOp::ScalarAdd(_tensor_scalar_add) => todo!(),
                     TensorOp::ScalarDiv(_tensor_scalar_div) => todo!(),
+                    TensorOp::Softmax(_tensor_soft_max) => todo!(),
                 };
             }
         }
@@ -225,6 +226,8 @@ impl<T: ForwardType> Tensor<T> {
                 TensorOp::ScalarMul(_) => "ScalarMul",
                 TensorOp::ScalarAdd(_) => "ScalarAdd",
                 TensorOp::ScalarDiv(_) => "ScalarDiv",
+                TensorOp::Softmax(_) => "Softmax",
+                _ => todo!(),
             }
         }
 

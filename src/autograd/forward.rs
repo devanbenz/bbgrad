@@ -5,8 +5,8 @@ use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul};
 use super::tensor::{Tensor, TensorBuilder, TensorData, TensorDataInner};
 use crate::autograd::ops::{
     TensorAdd, TensorBroadcastTo, TensorDiv, TensorExp, TensorLog, TensorMatMul, TensorMul,
-    TensorNeg, TensorOp, TensorPow, TensorRelu, TensorReshape, TensorSigmoid, TensorSqrt,
-    TensorSub, TensorSum, TensorTanh, TensorTranspose, dot_dyn,
+    TensorNeg, TensorOp, TensorPow, TensorRelu, TensorReshape, TensorSigmoid, TensorSoftmax,
+    TensorSqrt, TensorSub, TensorSum, TensorTanh, TensorTranspose, dot_dyn,
 };
 use ndarray::{ArrayBase, ArrayD, IxDyn, OwnedRepr};
 
@@ -293,6 +293,35 @@ impl<T: ForwardType> Forward<T> for TensorSqrt<T> {
 
     fn operation(&self) -> TensorOp<T> {
         TensorOp::Sqrt(TensorSqrt::new())
+    }
+}
+
+impl<T: ForwardType> Forward<T> for TensorSoftmax<T> {
+    fn forward(
+        &self,
+        inputs: Vec<ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T>>,
+    ) -> ndarray::ArrayBase<ndarray::OwnedRepr<T>, ndarray::Dim<ndarray::IxDynImpl>, T> {
+        assert_eq!(inputs.len(), 1, "softmax input requires length of 1");
+        let input = &inputs[0];
+        let axis = ndarray::Axis(0);
+
+        // For numerical stability, subtract the max along axis 0
+        let max = input
+            .map_axis(axis, |lane| {
+                lane.fold(T::neg_infinity(), |a, &b| a.max(b))
+            });
+        let max_expanded = max.insert_axis(axis);
+        let shifted = input - &max_expanded;
+
+        let exp = shifted.mapv(|x| x.exp());
+        let sum = exp
+            .sum_axis(axis)
+            .insert_axis(axis);
+        exp / sum
+    }
+
+    fn operation(&self) -> TensorOp<T> {
+        TensorOp::Softmax(TensorSoftmax::new())
     }
 }
 
