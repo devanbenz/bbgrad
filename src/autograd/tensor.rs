@@ -2,6 +2,7 @@
 
 use crate::autograd::ForwardType;
 use crate::autograd::backward::Backward;
+use crate::autograd::ops_impl::{Pow, Sum};
 
 use super::ops::TensorOp;
 use ndarray::{ArcArray, ArrayBase, ArrayD, IxDyn, OwnedRepr};
@@ -70,9 +71,13 @@ impl<T: ForwardType> Tensor<T> {
         }
     }
 
+    // TODO: I've seen topological ordering used instead of bfs, I should probably do that at some
+    // point
     pub fn backward(&self, grad: Option<Tensor<T>>) {
         let mut grads: HashMap<usize, Tensor<T>> = HashMap::new();
-        if grad.is_none() {
+        if let Some(input_grad) = grad {
+            grads.insert(self.id(), input_grad);
+        } else {
             let arr = ArrayD::ones(self.shape());
             grads.insert(
                 self.id(),
@@ -82,34 +87,64 @@ impl<T: ForwardType> Tensor<T> {
                 ),
             );
         }
-        let mut dfs_queue: VecDeque<Tensor<T>> = VecDeque::new();
-        let mut _visited: HashSet<usize> = HashSet::new();
-        dfs_queue.push_back(self.clone());
-        while let Some(node) = dfs_queue.pop_front() {
-            if let Some(operation) = node.op() {
-                let _output = match operation {
-                    TensorOp::Add(tensor_add) => tensor_add.backward(node.clone(), node),
-                    TensorOp::Sub(tensor_sub) => tensor_sub.backward(node.clone(), node),
-                    TensorOp::Div(tensor_div) => tensor_div.backward(node.clone(), node),
-                    TensorOp::Mul(tensor_mul) => tensor_mul.backward(node.clone(), node),
-                    TensorOp::Neg(_tensor_neg) => todo!(),
-                    TensorOp::MatMul(_tensor_mat_mul) => todo!(),
-                    TensorOp::Sum(_tensor_sum) => todo!(),
-                    TensorOp::BroadcastTo(_tensor_broadcast_to) => todo!(),
-                    TensorOp::Pow(tensor_pow) => tensor_pow.backward(node.clone(), node),
-                    TensorOp::Transpose(_tensor_transpose) => todo!(),
-                    TensorOp::Reshape(_tensor_reshape) => todo!(),
-                    TensorOp::Log(_tensor_log) => todo!(),
-                    TensorOp::Exp(_tensor_exp) => todo!(),
-                    TensorOp::Relu(_tensor_relu) => todo!(),
-                    TensorOp::Sigmoid(_tensor_sigmoid) => todo!(),
-                    TensorOp::Tanh(_tensor_tanh) => todo!(),
-                    TensorOp::Sqrt(_tensor_sqrt) => todo!(),
-                    TensorOp::ScalarMul(_tensor_scalar_mul) => todo!(),
-                    TensorOp::ScalarAdd(_tensor_scalar_add) => todo!(),
-                    TensorOp::ScalarDiv(_tensor_scalar_div) => todo!(),
-                    TensorOp::Softmax(_tensor_soft_max) => todo!(),
-                };
+
+        let mut bfs_queue: VecDeque<Tensor<T>> = VecDeque::new();
+        let mut visited: HashSet<usize> = HashSet::new();
+        bfs_queue.push_back(self.clone());
+        while let Some(node) = bfs_queue.pop_front() {
+            if !visited.insert(node.id()) {
+                continue;
+            }
+            let upstream_grad = match grads.get(&node.id()) {
+                Some(g) => g.clone(),
+                None => continue,
+            };
+            let inputs = node.inputs();
+            let op = match node.op() {
+                Some(op) => op,
+                None => continue,
+            };
+
+            let (grad_a, grad_b) = match op {
+                TensorOp::Add(tensor_add) => tensor_add.backward(upstream_grad.clone(), node),
+                TensorOp::Sub(tensor_sub) => tensor_sub.backward(upstream_grad.clone(), node),
+                TensorOp::Div(tensor_div) => tensor_div.backward(upstream_grad.clone(), node),
+                TensorOp::Mul(tensor_mul) => tensor_mul.backward(upstream_grad.clone(), node),
+                TensorOp::Neg(_tensor_neg) => todo!(),
+                TensorOp::MatMul(tensor_mat_mul) => {
+                    tensor_mat_mul.backward(upstream_grad.clone(), node)
+                }
+                TensorOp::Sum(tensor_sum) => tensor_sum.backward(upstream_grad.clone(), node),
+                TensorOp::BroadcastTo(_tensor_broadcast_to) => todo!(),
+                TensorOp::Pow(tensor_pow) => tensor_pow.backward(upstream_grad.clone(), node),
+                TensorOp::Transpose(_tensor_transpose) => todo!(),
+                TensorOp::Reshape(_tensor_reshape) => todo!(),
+                TensorOp::Log(_tensor_log) => todo!(),
+                TensorOp::Exp(_tensor_exp) => todo!(),
+                TensorOp::Relu(_tensor_relu) => todo!(),
+                TensorOp::Sigmoid(tensor_sigmoid) => {
+                    tensor_sigmoid.backward(upstream_grad.clone(), node)
+                }
+                TensorOp::Tanh(_tensor_tanh) => todo!(),
+                TensorOp::Sqrt(_tensor_sqrt) => todo!(),
+                TensorOp::ScalarMul(_tensor_scalar_mul) => todo!(),
+                TensorOp::ScalarAdd(_tensor_scalar_add) => todo!(),
+                TensorOp::ScalarDiv(_tensor_scalar_div) => todo!(),
+                TensorOp::Softmax(tensor_soft_max) => {
+                    tensor_soft_max.backward(upstream_grad.clone(), node)
+                }
+            };
+
+            let input_grads = [grad_a, grad_b];
+            for (i, input) in inputs.iter().enumerate() {
+                let input_grad = &input_grads[i];
+                grads
+                    .entry(input.id())
+                    .and_modify(|v| *v = v.clone() + input_grad.clone())
+                    .or_insert_with(|| input_grad.clone());
+
+                *input.grad.write().unwrap() = Some(input_grad.clone());
+                bfs_queue.push_back(input.clone());
             }
         }
     }
@@ -185,14 +220,9 @@ impl<T: ForwardType> Tensor<T> {
         }
     }
 
-    pub fn loss(&self, target_index: usize, output_size: usize, target: T) -> f64 {
-        let mut a = self
-            .ndarray()
-            .to_owned()
-            .into_shape_with_order(IxDyn(&[output_size]))
-            .unwrap();
-        a[target_index] -= target;
-        a.pow2().sum().to_f64().unwrap()
+    pub fn loss(&self, target: &Tensor<T>) -> Tensor<T> {
+        let diff = self.clone() - target.clone();
+        diff.pow(2).sum()
     }
 
     pub fn detach(&self) -> Tensor<T> {
@@ -260,7 +290,7 @@ impl<T: ForwardType> Tensor<T> {
             let grad_str = match &tensor.grad.read() {
                 Ok(g) => {
                     if let Some(ref v) = **g {
-                        format!(" grad={:?}", v.grad.read().unwrap())
+                        format!(" grad={}", v)
                     } else {
                         String::new()
                     }

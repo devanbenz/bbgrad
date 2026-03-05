@@ -19,9 +19,11 @@ impl Perceptron {
 
         for (idx, weight_tensor) in self.weights.iter().enumerate() {
             if idx == self.weights.len() - 1 {
-                activation = weight_tensor.matmul(&activation).softmax();
+                activation =
+                    (weight_tensor.matmul(&activation) + self.biases[idx].clone()).softmax();
             } else {
-                activation = weight_tensor.matmul(&activation).sigmoid();
+                activation =
+                    (weight_tensor.matmul(&activation) + self.biases[idx].clone()).sigmoid();
             }
         }
 
@@ -73,7 +75,7 @@ impl PerceptronBuilder {
                 .build();
 
             let biases = FloatTensorBuilder::new()
-                .with_ndarray(ArrayD::zeros(IxDyn(&[1, cols])))
+                .with_ndarray(ArrayD::zeros(IxDyn(&[rows, 1])))
                 .with_grad(true)
                 .build();
 

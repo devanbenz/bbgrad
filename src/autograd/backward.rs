@@ -1,6 +1,10 @@
 #![allow(dead_code)]
 
-use super::ops::{TensorDiv, TensorMatMul, TensorMul, TensorPow, TensorSigmoid, TensorSub};
+use super::ops::{
+    TensorDiv, TensorMatMul, TensorMul, TensorPow, TensorSigmoid, TensorSoftmax, TensorSub,
+    TensorSum,
+};
+use super::ops_impl::{MatMul, Transpose};
 use super::tensor::{Tensor, TensorData, TensorDataInner};
 use super::{ForwardType, ops::TensorAdd};
 use crate::autograd::ops_impl::Pow;
@@ -106,6 +110,34 @@ impl<T: ForwardType> Backward for TensorPow<T> {
     }
 }
 
+impl<T: ForwardType> Backward for TensorSum<T> {
+    type OutGrad = Tensor<T>;
+    type Node = Tensor<T>;
+    type Output = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
+        // d/dx sum(x) = 1 for each element
+        // Broadcast the upstream gradient (shape [1]) to the input shape
+        let inputs = node.inputs();
+        assert_eq!(inputs.len(), 1);
+        let x = inputs.first().unwrap();
+
+        let upstream_val = out_grade.ndarray();
+        let grad_arr = ArrayD::from_elem(IxDyn(&x.shape()), upstream_val[IxDyn(&[0])]);
+        let grad_x = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(grad_arr)),
+            None,
+        );
+
+        let zeros_arr = ArrayD::zeros(IxDyn(&x.shape()));
+        let zeros = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(zeros_arr)),
+            None,
+        );
+        (grad_x, zeros)
+    }
+}
+
 impl<T: ForwardType> Backward for TensorMatMul<T> {
     type OutGrad = Tensor<T>;
     type Node = Tensor<T>;
@@ -116,7 +148,15 @@ impl<T: ForwardType> Backward for TensorMatMul<T> {
         assert_eq!(inputs.len(), 2);
         let x = inputs.first().unwrap();
         let y = &inputs[1];
-        todo!()
+
+        // Z = X @ Y
+        // dL/dX = dL/dZ @ Y^T
+        // dL/dY = X^T @ dL/dZ
+        let y_t = y.transpose(y.shape());
+        let x_t = x.transpose(x.shape());
+        let grad_x = out_grade.matmul(&y_t);
+        let grad_y = x_t.matmul(&out_grade);
+        (grad_x, grad_y)
     }
 }
 
@@ -126,9 +166,51 @@ impl<T: ForwardType> Backward for TensorSigmoid<T> {
     type Output = (Tensor<T>, Tensor<T>);
 
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
-        let inputs = node.inputs();
-        let x = inputs.first().unwrap();
-        todo!()
+        // sigmoid'(x) = sigmoid(x) * (1 - sigmoid(x))
+        let ones_arr = ArrayD::from_elem(IxDyn(&node.shape()), T::one());
+        let ones = Tensor::new(
+            TensorData::new(node.dtype(), TensorDataInner::NdArray(ones_arr)),
+            None,
+        );
+        let grad_x = out_grade * node.clone() * (ones - node.clone());
+
+        let zeros_arr = ArrayD::zeros(IxDyn(&node.shape()));
+        let zeros_tensor = Tensor::new(
+            TensorData::new(node.dtype(), TensorDataInner::NdArray(zeros_arr)),
+            None,
+        );
+        (grad_x, zeros_tensor)
+    }
+}
+
+impl<T: ForwardType> Backward for TensorSoftmax<T> {
+    type OutGrad = Tensor<T>;
+    type Node = Tensor<T>;
+    type Output = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
+        // softmax'(x_i) = y_i * (dL/dy_i - sum(dL/dy * y))
+        // where y = softmax(x)
+        // node is the softmax output (y)
+        let upstream = out_grade.ndarray();
+        let y = node.ndarray();
+
+        // sum(dL/dy * y)
+        let dot = (&upstream * &y).sum();
+
+        // grad_x = y * (upstream - dot)
+        let grad_arr = &y * &(&upstream - dot);
+        let grad_x = Tensor::new(
+            TensorData::new(node.dtype(), TensorDataInner::NdArray(grad_arr)),
+            None,
+        );
+
+        let zeros_arr = ArrayD::zeros(IxDyn(&node.shape()));
+        let zeros = Tensor::new(
+            TensorData::new(node.dtype(), TensorDataInner::NdArray(zeros_arr)),
+            None,
+        );
+        (grad_x, zeros)
     }
 }
 
@@ -153,5 +235,10 @@ mod backward_tests {
     }
 
     #[test]
-    fn backward_add() {}
+    fn backward_mul() {
+        let (t1, t2) = build_tensors();
+        let t3 = t1 * t2;
+        t3.backward(None);
+        t3.graph();
+    }
 }

@@ -1,8 +1,12 @@
 use bbgrad::autograd::nn::PerceptronBuilder;
 use bbgrad::autograd::tensor_builder::FloatTensorBuilder;
 use ndarray::{ArrayD, IxDyn};
+use ndarray_stats::QuantileExt;
 
 fn main() {
+    let mut count = 0.0;
+    let mut correct_prediction = 0.0;
+
     let input_file = std::env::args().nth(1).expect("Usage: bbgrad <input csv>");
     let mut data = csv::ReaderBuilder::new()
         .has_headers(false)
@@ -17,6 +21,7 @@ fn main() {
         .build();
 
     for record in data.records() {
+        count += 1.;
         let r = record
             .unwrap()
             .iter()
@@ -29,9 +34,23 @@ fn main() {
             .with_ndarray(array)
             .with_grad(false)
             .build();
+
+        let mut target_vec = vec![0.0f64; 10];
+        target_vec[label] = 1.0;
+        let target_arr = ArrayD::from_shape_vec(IxDyn(&[10, 1]), target_vec).unwrap();
+        let target_tensor = FloatTensorBuilder::new()
+            .with_ndarray(target_arr)
+            .with_grad(false)
+            .build();
+
         let t = perceptron.forward(input_tensor);
-        t.graph();
-        let loss = t.loss(label, 10, 1f64);
-        println!("loss: {}", loss);
+        let prediction = t.ndarray().argmax().expect("couldn't get argmax");
+        if prediction[0] == label {
+            correct_prediction += 1.;
+        }
+        let loss = t.loss(&target_tensor);
+        loss.backward(None);
+        println!("\n\n");
+        loss.graph();
     }
 }

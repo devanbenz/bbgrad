@@ -14,7 +14,7 @@ use super::ForwardType;
 use super::ops::{TensorScalarAdd, TensorScalarDiv, TensorScalarMul, TensorSigmoid, TensorSoftmax};
 use super::tensor::Tensor;
 
-trait Sum {
+pub trait Sum {
     type Output;
 
     fn sum(&self) -> Self::Output;
@@ -47,7 +47,7 @@ trait Reshape {
     fn reshape(&self, exp: Self::Shape) -> Self::Output;
 }
 
-trait Transpose {
+pub trait Transpose {
     type Output;
     type Shape;
 
