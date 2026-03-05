@@ -1,10 +1,9 @@
+use super::tensor_builder::FloatTensorBuilder;
 use crate::autograd::ops_impl::{MatMul, Sigmoid, Softmax};
 use crate::autograd::tensor::Tensor;
 use ndarray::{ArrayD, IxDyn};
 use ndarray_rand::RandomExt;
 use ndarray_rand::rand_distr::Uniform;
-
-use super::tensor_builder::FloatTensorBuilder;
 
 pub struct Perceptron {
     random_dist: Uniform<f64>,
@@ -14,6 +13,37 @@ pub struct Perceptron {
 }
 
 impl Perceptron {
+    pub fn predict(&self, input: Tensor<f64>) -> Tensor<f64> {
+        self.forward(input)
+    }
+
+    pub fn train(&self, input: Tensor<f64>, expected_output: Tensor<f64>, learning_rate: f64) {
+        for w in &self.weights {
+            w.zero_grad();
+        }
+        for b in &self.biases {
+            b.zero_grad();
+        }
+
+        let prediction = self.forward(input);
+
+        let loss = prediction.loss(&expected_output);
+        loss.backward(None);
+
+        for w in &self.weights {
+            if let Some(grad) = w.grad() {
+                let updated = &w.ndarray() - &(&grad.ndarray() * learning_rate);
+                w.update_data(updated);
+            }
+        }
+        for b in &self.biases {
+            if let Some(grad) = b.grad() {
+                let updated = &b.ndarray() - &(&grad.ndarray() * learning_rate);
+                b.update_data(updated);
+            }
+        }
+    }
+
     pub fn forward(&self, input: Tensor<f64>) -> Tensor<f64> {
         let mut activation = input;
 

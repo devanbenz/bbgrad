@@ -128,7 +128,9 @@ impl<T: ForwardType> Tensor<T> {
                 TensorOp::Tanh(_tensor_tanh) => todo!(),
                 TensorOp::Sqrt(_tensor_sqrt) => todo!(),
                 TensorOp::ScalarMul(_tensor_scalar_mul) => todo!(),
-                TensorOp::ScalarAdd(_tensor_scalar_add) => todo!(),
+                TensorOp::ScalarAdd(tensor_scalar_add) => {
+                    tensor_scalar_add.backward(upstream_grad.clone(), node)
+                }
                 TensorOp::ScalarDiv(_tensor_scalar_div) => todo!(),
                 TensorOp::Softmax(tensor_soft_max) => {
                     tensor_soft_max.backward(upstream_grad.clone(), node)
@@ -225,6 +227,18 @@ impl<T: ForwardType> Tensor<T> {
         diff.pow(2).sum()
     }
 
+    pub fn grad(&self) -> Option<Tensor<T>> {
+        self.grad.read().unwrap().clone()
+    }
+
+    pub fn zero_grad(&self) {
+        *self.grad.write().unwrap() = None;
+    }
+
+    pub fn update_data(&self, new_data: ArrayBase<OwnedRepr<T>, IxDyn, T>) {
+        self.inner.write().unwrap().data = new_data;
+    }
+
     pub fn detach(&self) -> Tensor<T> {
         Tensor {
             inner: self.inner.clone(),
@@ -257,7 +271,6 @@ impl<T: ForwardType> Tensor<T> {
                 TensorOp::ScalarAdd(_) => "ScalarAdd",
                 TensorOp::ScalarDiv(_) => "ScalarDiv",
                 TensorOp::Softmax(_) => "Softmax",
-                _ => todo!(),
             }
         }
 
@@ -459,7 +472,6 @@ impl<T: ForwardType> TensorBuilder<T> {
 #[cfg(test)]
 mod tests {
     use ndarray::ArrayD;
-    use ndarray::linalg::Dot;
 
     use crate::autograd::ops_impl::{MatMul, Sigmoid};
 

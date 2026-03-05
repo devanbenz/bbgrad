@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 
 use super::ops::{
-    TensorDiv, TensorMatMul, TensorMul, TensorPow, TensorSigmoid, TensorSoftmax, TensorSub,
-    TensorSum,
+    TensorDiv, TensorMatMul, TensorMul, TensorPow, TensorScalarAdd, TensorSigmoid, TensorSoftmax,
+    TensorSub, TensorSum,
 };
 use super::ops_impl::{MatMul, Transpose};
 use super::tensor::{Tensor, TensorData, TensorDataInner};
@@ -211,6 +211,26 @@ impl<T: ForwardType> Backward for TensorSoftmax<T> {
             None,
         );
         (grad_x, zeros)
+    }
+}
+
+impl<T: ForwardType> Backward for TensorScalarAdd<T> {
+    type OutGrad = Tensor<T>;
+    type Node = Tensor<T>;
+    type Output = (Tensor<T>, Tensor<T>);
+
+    fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
+        // d/dx (x + scalar) = 1, so gradient passes through unchanged
+        let inputs = node.inputs();
+        assert_eq!(inputs.len(), 1);
+        let x = inputs.first().unwrap();
+
+        let zeros_arr = ArrayD::zeros(IxDyn(&x.shape()));
+        let zeros = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(zeros_arr)),
+            None,
+        );
+        (out_grade, zeros)
     }
 }
 
