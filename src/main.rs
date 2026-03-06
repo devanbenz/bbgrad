@@ -1,3 +1,5 @@
+use std::time;
+
 use bbgrad::autograd::nn::PerceptronBuilder;
 use bbgrad::autograd::tensor_builder::FloatTensorBuilder;
 use ndarray::{ArrayD, IxDyn};
@@ -13,7 +15,6 @@ fn main() {
         .has_headers(false)
         .from_path(input_file)
         .unwrap();
-
     let mut train_data = csv::ReaderBuilder::new()
         .has_headers(false)
         .from_path(train_file)
@@ -49,7 +50,9 @@ fn main() {
     }
     println!("Pre-training accuracy: {}", correct_prediction / count);
 
-    for record in train_data.records() {
+    println!("Begin training...");
+    let t = time::Instant::now();
+    for (idx, record) in train_data.records().enumerate() {
         let r = record
             .unwrap()
             .iter()
@@ -71,7 +74,11 @@ fn main() {
             .build();
 
         perceptron.train(input_tensor, exp_tensor, 0.01);
+        if idx % 5000 == 0 && idx != 0 {
+            println!("Processed 5000 records");
+        }
     }
+    println!("Training time: {}s", t.elapsed().as_secs_f64());
 
     count = 0.0;
     correct_prediction = 0.0;
