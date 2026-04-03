@@ -1,4 +1,5 @@
 # bbgrad
 
-Very small autograd engine based on: https://zekcrates.quarto.pub/deep-learning-library
+A small tensor library implementing frequently used gradient descent operations. 
+
 

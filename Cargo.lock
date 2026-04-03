@@ -44,6 +44,7 @@ dependencies = [
  "num-traits",
  "openblas-src",
  "pyo3",
+ "rand 0.9.2",
 ]
 
 [[package]]

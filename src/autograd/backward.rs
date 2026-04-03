@@ -2,12 +2,10 @@
 
 use super::ops::{
     TensorDiv, TensorMatMul, TensorMul, TensorPow, TensorScalarAdd, TensorSigmoid, TensorSoftmax,
-    TensorSub, TensorSum,
+    TensorSub, TensorSum, dot_dyn,
 };
-use super::ops_impl::{MatMul, Transpose};
 use super::tensor::{Tensor, TensorData, TensorDataInner};
 use super::{ForwardType, ops::TensorAdd};
-use crate::autograd::ops_impl::Pow;
 use ndarray::{ArrayD, IxDyn};
 
 pub trait Backward {
@@ -66,15 +64,25 @@ impl<T: ForwardType> Backward for TensorMul<T> {
     type Output = (Tensor<T>, Tensor<T>);
 
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
-        assert_eq!(node.inputs().len(), 2);
-        let a = node.inputs();
-        let a = a.first().unwrap();
-        let b = node.inputs();
-        let b = b.get(1).unwrap();
+        let inputs = node.inputs();
+        assert_eq!(inputs.len(), 2);
+        let a = inputs.first().unwrap();
+        let b = inputs.get(1).unwrap();
 
         // derivative of (a * b) wrt a is 1 * b
         // derivative of (a * b) wrt b is 1 * a
-        (out_grade.clone() * b.clone(), out_grade.clone() * a.clone())
+
+        let grad_a_arr = &out_grade.ndarray() * &b.ndarray();
+        let grad_b_arr = &out_grade.ndarray() * &a.ndarray();
+        let grad_a = Tensor::new(
+            TensorData::new(a.dtype(), TensorDataInner::NdArray(grad_a_arr)),
+            None,
+        );
+        let grad_b = Tensor::new(
+            TensorData::new(b.dtype(), TensorDataInner::NdArray(grad_b_arr)),
+            None,
+        );
+        (grad_a, grad_b)
     }
 }
 
@@ -88,18 +96,19 @@ impl<T: ForwardType> Backward for TensorPow<T> {
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
         // Pow is a unary operation: f(x) = x^n where n = self.power
         // d/dx (x^n) = n * x^(n-1)
+
         let inputs = node.inputs();
         assert_eq!(inputs.len(), 1);
         let x = inputs.first().unwrap();
 
         let n: T = T::from(self.power).unwrap();
-        let n_arr = ArrayD::from_elem(IxDyn(&x.shape()), n);
-        let n_tensor = Tensor::new(
-            TensorData::new(x.dtype(), TensorDataInner::NdArray(n_arr)),
+        let x_arr = x.ndarray();
+        let x_pow = x_arr.mapv(|v| v.pow(self.power - 1));
+        let grad_arr = &out_grade.ndarray() * &(&x_pow * n);
+        let grad_x = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(grad_arr)),
             None,
         );
-
-        let grad_x = out_grade * n_tensor * x.clone().pow(self.power - 1);
 
         let zeros_arr = ArrayD::zeros(IxDyn(&x.shape()));
         let zeros_tensor = Tensor::new(
@@ -152,10 +161,22 @@ impl<T: ForwardType> Backward for TensorMatMul<T> {
         // Z = X @ Y
         // dL/dX = dL/dZ @ Y^T
         // dL/dY = X^T @ dL/dZ
-        let y_t = y.transpose(y.shape());
-        let x_t = x.transpose(x.shape());
-        let grad_x = out_grade.matmul(&y_t);
-        let grad_y = x_t.matmul(&out_grade);
+
+        let upstream = out_grade.ndarray();
+        let y_arr = y.ndarray();
+        let x_arr = x.ndarray();
+        let y_t = y_arr.t().to_owned().into_dyn().into_owned();
+        let x_t = x_arr.t().to_owned().into_dyn().into_owned();
+        let grad_x_arr = dot_dyn(&upstream, &y_t);
+        let grad_y_arr = dot_dyn(&x_t, &upstream);
+        let grad_x = Tensor::new(
+            TensorData::new(x.dtype(), TensorDataInner::NdArray(grad_x_arr)),
+            None,
+        );
+        let grad_y = Tensor::new(
+            TensorData::new(y.dtype(), TensorDataInner::NdArray(grad_y_arr)),
+            None,
+        );
         (grad_x, grad_y)
     }
 }
@@ -167,12 +188,15 @@ impl<T: ForwardType> Backward for TensorSigmoid<T> {
 
     fn backward(&self, out_grade: Self::OutGrad, node: Self::Node) -> Self::Output {
         // sigmoid'(x) = sigmoid(x) * (1 - sigmoid(x))
+
+        let node_arr = node.ndarray();
         let ones_arr = ArrayD::from_elem(IxDyn(&node.shape()), T::one());
-        let ones = Tensor::new(
-            TensorData::new(node.dtype(), TensorDataInner::NdArray(ones_arr)),
+        let sigmoid_grad = &node_arr * &(&ones_arr - &node_arr);
+        let grad_arr = &out_grade.ndarray() * &sigmoid_grad;
+        let grad_x = Tensor::new(
+            TensorData::new(node.dtype(), TensorDataInner::NdArray(grad_arr)),
             None,
         );
-        let grad_x = out_grade * node.clone() * (ones - node.clone());
 
         let zeros_arr = ArrayD::zeros(IxDyn(&node.shape()));
         let zeros_tensor = Tensor::new(

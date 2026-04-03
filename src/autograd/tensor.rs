@@ -105,6 +105,7 @@ impl<T: ForwardType> Tensor<T> {
                 None => continue,
             };
 
+            let node_ref = node.clone();
             let (grad_a, grad_b) = match op {
                 TensorOp::Add(tensor_add) => tensor_add.backward(upstream_grad.clone(), node),
                 TensorOp::Sub(tensor_sub) => tensor_sub.backward(upstream_grad.clone(), node),
@@ -136,6 +137,7 @@ impl<T: ForwardType> Tensor<T> {
                     tensor_soft_max.backward(upstream_grad.clone(), node)
                 }
             };
+            node_ref.clear_graph();
 
             let input_grads = [grad_a, grad_b];
             for (i, input) in inputs.iter().enumerate() {
@@ -233,6 +235,11 @@ impl<T: ForwardType> Tensor<T> {
 
     pub fn zero_grad(&self) {
         *self.grad.write().unwrap() = None;
+    }
+
+    pub fn clear_graph(&self) {
+        self.inputs.write().unwrap().clear();
+        self.inner.write().unwrap().op = None;
     }
 
     pub fn update_data(&self, new_data: ArrayBase<OwnedRepr<T>, IxDyn, T>) {

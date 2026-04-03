@@ -17,3 +17,4 @@ openblas-src = { version = "0.10", features = ["cblas", "system"] }
 num-traits = "0.2.19"
 pyo3 = "0.28.0"
 csv = "1.4.0"
+rand = "0.9"
